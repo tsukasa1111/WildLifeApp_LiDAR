@@ -185,9 +185,7 @@ final class AppDataModel: NSObject, ObservableObject, Identifiable, CLLocationMa
 
     deinit {
         NotificationCenter.default.removeObserver(self)
-        DispatchQueue.main.async {
-            self.detachListeners()
-        }
+        for task in tasks { task.cancel() }
     }
 
     /// Once reconstruction and viewing are complete, this should be called to let the app know it can go back to the new capture
@@ -398,7 +396,7 @@ extension AppDataModel {
             logger.error("Got error starting session! \(String(describing: error))")
             objectCaptureSession = nil
             removeCaptureFolder()
-            captureFolderManager = nil
+            self.captureFolderManager = nil
             throw error
         }
         
@@ -419,11 +417,7 @@ extension AppDataModel {
             // 縦画面固定を強制
             let orientationUpdate = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
             windowScene.requestGeometryUpdate(orientationUpdate) { error in
-                if error != nil {
-                    print("Failed to force portrait orientation during capture: \(error)")
-                } else {
-                    print("✅ Portrait orientation forced for capture")
-                }
+                logger.error("Failed to force portrait orientation during capture: \(error)")
             }
             
             // デバイス方向を縦画面に強制

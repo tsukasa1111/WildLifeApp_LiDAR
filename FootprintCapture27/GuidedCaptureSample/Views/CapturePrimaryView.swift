@@ -140,11 +140,7 @@ struct CapturePrimaryView: View {
             // 縦画面固定を強制
             let orientationUpdate = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
             windowScene.requestGeometryUpdate(orientationUpdate) { error in
-                if error != nil {
-                    logger.log("Failed to enforce portrait orientation: \(error.localizedDescription)")
-                } else {
-                    logger.log("✅ Portrait orientation enforced in CapturePrimaryView")
-                }
+                logger.error("Failed to enforce portrait orientation: \(error.localizedDescription)")
             }
             
             // デバイス方向情報を強制更新

@@ -31,9 +31,7 @@ struct GuidedCaptureSampleApp: App {
         // 縦画面固定を強制
         let orientationUpdate = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
         windowScene.requestGeometryUpdate(orientationUpdate) { error in
-            if error != nil {
-                print("Failed to force portrait orientation: \(error)")
-            }
+            print("Failed to force portrait orientation: \(error)")
         }
         
         // 追加の縦画面固定処理

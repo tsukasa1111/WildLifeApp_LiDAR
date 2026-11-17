@@ -165,8 +165,8 @@ final class MetadataInputViewModel: ObservableObject {
             hasCompletedAnnotation = false
             return
         }
-        let annotatedImageURL = cfm.captureFolder.appendingPathComponent("annotated_footprints.jpg")
-        hasCompletedAnnotation = FileManager.default.fileExists(atPath: annotatedImageURL.path)
+        hasCompletedAnnotation = cfm.hasAnnotatedImage() &&
+            (cfm.loadAnnotationMetadata()?.annotations.isEmpty == false)
         logger.log("Annotation completion check: \(self.hasCompletedAnnotation)")
     }
 

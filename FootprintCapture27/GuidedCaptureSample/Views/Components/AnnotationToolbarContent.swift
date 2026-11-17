@@ -23,10 +23,9 @@ struct AnnotationToolbarContent: ToolbarContent {
                 .padding(.vertical, 6)
                 .background(
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(annotationsCount == 0 ? Color.gray : Color.blue)
+                        .fill(Color.blue)
                 )
             }
-            .disabled(annotationsCount == 0)
         }
     }
 }
