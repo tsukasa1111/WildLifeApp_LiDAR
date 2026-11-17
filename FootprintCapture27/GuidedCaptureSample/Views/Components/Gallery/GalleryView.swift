@@ -1,8 +1,10 @@
 import SwiftUI
+import ImageIO
 
 struct GC_GalleryView: View {
     @EnvironmentObject var appModel: AppDataModel
     @Binding var showCaptureFolders: Bool
+    var showsCloseButton = true
     @State private var gridLayout: GridLayout = .three
 
     // Filters and sort
@@ -74,6 +76,13 @@ struct GC_GalleryView: View {
             } else {
                 EmptyGalleryView()
             }
+
+            if showsCloseButton {
+                Button("閉じる") {
+                    withAnimation(.easeInOut(duration: 0.3)) { showCaptureFolders = false }
+                }
+                .padding(12)
+            }
         }
     }
 
@@ -131,10 +140,6 @@ struct GC_GalleryView: View {
                 }
             }
 
-            Button("キャンセル") {
-                withAnimation(.easeInOut(duration: 0.3)) { showCaptureFolders = false }
-            }
-            .foregroundColor(.accentColor)
         }
     }
 
@@ -232,7 +237,7 @@ struct GC_GalleryView: View {
     }
 
     var captureFolderURLs: [URL]? {
-        guard let topLevelFolder = appModel.captureFolderManager?.appDocumentsFolder else { return nil }
+        let topLevelFolder = URL.documentsDirectory
         do {
             let contents = try FileManager.default.contentsOfDirectory(
                 at: topLevelFolder,
@@ -317,41 +322,70 @@ private struct ThumbnailView: View {
     @EnvironmentObject var appModel: AppDataModel
     let captureFolderURL: URL
     let frameSize: CGSize
+    @State private var thumbnail: CGImage?
+    @State private var showSessionDetail = false
+    @State private var refreshID = 0
 
     var body: some View {
-        VStack(spacing: 8) {
-            ZStack(alignment: .topTrailing) {
-                thumbnailImage
-                statusBadge
-            }
-            .frame(width: frameSize.width, height: frameSize.width)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
-            .contentShape(RoundedRectangle(cornerRadius: 12))
-            .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-            .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(captureFolderURL.lastPathComponent)
-                    .font(.subheadline)
-                    .lineLimit(1)
-                    .foregroundColor(.primary)
-                HStack(spacing: 6) {
-                    Image(systemName: "pawprint.fill").font(.system(size: 10)).foregroundColor(.orange)
-                    Text(animalTypeText).font(.caption).foregroundColor(.secondary).lineLimit(1)
-                    Spacer()
+        Button {
+            showSessionDetail = true
+        } label: {
+            VStack(spacing: 8) {
+                ZStack(alignment: .topTrailing) {
+                    thumbnailImage
+                    statusBadge.id(refreshID)
                 }
+                .frame(width: frameSize.width, height: frameSize.width)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .contentShape(RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.2), lineWidth: 1))
+                .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(displayDate)
+                        .font(.subheadline)
+                        .lineLimit(1)
+                        .foregroundColor(.primary)
+                    HStack(spacing: 6) {
+                        Image(systemName: "pawprint.fill").font(.system(size: 10)).foregroundColor(.orange)
+                        Text(animalTypeText).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                        Spacer()
+                    }
+                }
+                .frame(width: frameSize.width)
             }
-            .frame(width: frameSize.width)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showSessionDetail, onDismiss: { refreshID += 1 }) {
+            SessionDetailView(
+                captureFolderURL: captureFolderURL,
+                imageCount: imageCount,
+                onModelGenerated: { refreshID += 1 }
+            )
+            .environmentObject(appModel)
+        }
+        .task(id: captureFolderURL) {
+            let imagesFolder = captureFolderURL.appendingPathComponent(CaptureFolderManager.imagesFolderName)
+            let firstImage = (try? FileManager.default.contentsOfDirectory(at: imagesFolder, includingPropertiesForKeys: nil))?
+                .filter { ["jpg", "jpeg", "png", "heic"].contains($0.pathExtension.lowercased()) }
+                .sorted { $0.lastPathComponent < $1.lastPathComponent }
+                .first
+            guard let firstImage else { return }
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: 300
+            ]
+            if let source = CGImageSourceCreateWithURL(firstImage as CFURL, nil) {
+                thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            }
         }
     }
 
     private var thumbnailImage: some View {
-        let imagesFolder = captureFolderURL.appendingPathComponent(CaptureFolderManager.imagesFolderName)
-        let firstImage = (try? FileManager.default.contentsOfDirectory(at: imagesFolder, includingPropertiesForKeys: nil))?
-            .first { ["jpg","jpeg","png","heic"].contains($0.pathExtension.lowercased()) }
         return Group {
-            if let url = firstImage, let data = try? Data(contentsOf: url), let uiImg = UIImage(data: data) {
-                Image(uiImage: uiImg).resizable().scaledToFill()
+            if let thumbnail {
+                Image(decorative: thumbnail, scale: 1.0).resizable().scaledToFill()
             } else {
                 ZStack {
                     Color.gray.opacity(0.1)
@@ -361,8 +395,23 @@ private struct ThumbnailView: View {
         }
     }
 
+    private var displayDate: String {
+        let name = captureFolderURL.lastPathComponent
+        let timestamp = String(name.prefix(20))
+        guard let date = ISO8601DateFormatter().date(from: timestamp) else { return name }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+
+    private var imageCount: Int {
+        let imagesFolder = captureFolderURL.appendingPathComponent(CaptureFolderManager.imagesFolderName)
+        return (try? FileManager.default.contentsOfDirectory(at: imagesFolder, includingPropertiesForKeys: nil))?
+            .filter { ["jpg", "jpeg", "png", "heic"].contains($0.pathExtension.lowercased()) }.count ?? 0
+    }
+
     private var animalTypeText: String {
-        if let md = loadMetadata(from: captureFolderURL) { return md.animalType }
+        if let md = loadMetadata(from: captureFolderURL) {
+            return md.hasFootprint ? md.animalType : "足跡なし"
+        }
         return "-"
     }
 
@@ -377,7 +426,7 @@ private struct ThumbnailView: View {
             if hasModel(in: captureFolderURL) {
                 Text("3D").font(.caption2).padding(6).background(Capsule().fill(Color.green.opacity(0.2))).overlay(Capsule().stroke(Color.green.opacity(0.4))).padding(6)
             } else {
-                Image(systemName: "exclamationmark.triangle.fill").foregroundColor(.orange).padding(8)
+                Text("写真").font(.caption2).padding(6).background(Capsule().fill(Color.blue.opacity(0.2))).padding(6)
             }
         }
     }

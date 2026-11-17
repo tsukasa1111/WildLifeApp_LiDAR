@@ -57,10 +57,22 @@ enum FootprintSize: String, CaseIterable, Codable {
 // MARK: - Footprint Model
 
 struct FootprintAnnotation: Identifiable, Codable {
-    let id = UUID()
+    let id: UUID
     var position: CGPoint // 正規化座標 (0..1)
     var size: FootprintSize
     var scaleMultiplier: CGFloat
+
+    enum CodingKeys: String, CodingKey {
+        case id, position, size, scaleMultiplier
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(UUID.self, forKey: .id) ?? UUID()
+        position = try container.decode(CGPoint.self, forKey: .position)
+        size = try container.decode(FootprintSize.self, forKey: .size)
+        scaleMultiplier = try container.decodeIfPresent(CGFloat.self, forKey: .scaleMultiplier) ?? 1.0
+    }
     
     var actualSizeInPixels: CGFloat {
         return size.iconSize * scaleMultiplier
@@ -88,7 +100,8 @@ struct FootprintAnnotation: Identifiable, Codable {
         )
     }
     
-    init(position: CGPoint, size: FootprintSize, scaleMultiplier: CGFloat = 1.0) {
+    init(position: CGPoint, size: FootprintSize, scaleMultiplier: CGFloat = 1.0, id: UUID = UUID()) {
+        self.id = id
         self.position = position
         self.size = size
         self.scaleMultiplier = scaleMultiplier
@@ -101,6 +114,7 @@ struct AnnotationMetadata: Codable {
     let annotations: [FootprintAnnotation]
     let imageSize: CGSize
     let timestamp: Date
+    let sourceImageName: String?
     
     var sizeStatistics: FootprintSizeStatistics {
         let sizes = annotations.map { $0.actualSizeInPixels }
@@ -117,6 +131,7 @@ struct AnnotationMetadata: Codable {
     
     var totalFootprintArea: Double {
         let imageArea = imageSize.width * imageSize.height
+        guard imageArea > 0 else { return 0 }
         let footprintArea = annotations.reduce(0.0) { total, annotation in
             let bounds = annotation.boundingSize
             return total + Double(bounds.width * bounds.height)

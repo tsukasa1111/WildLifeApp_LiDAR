@@ -21,16 +21,7 @@ struct GC_CustomImageSelectorView: View {
                 ], spacing: 20) {
                     ForEach(Array(availableImages.enumerated()), id: \.offset) { index, imageURL in
                         VStack(spacing: 8) {
-                            AsyncImage(url: imageURL) { image in
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            } placeholder: {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.2))
-                                    .overlay(ProgressView().tint(.blue))
-                            }
-                            .frame(width: 100, height: 100)
+                            LocalImageThumbnail(url: imageURL, size: 100)
                             .clipped()
                             .cornerRadius(12)
                             .overlay(

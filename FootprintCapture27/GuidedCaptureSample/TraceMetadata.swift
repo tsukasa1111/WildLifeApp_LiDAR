@@ -22,8 +22,8 @@ struct TraceMetadata: Codable, Identifiable {
         case latitude, longitude, altitude, horizontalAccuracy, verticalAccuracy
     }
     
-    init(hasFootprint: Bool, animalType: String, traceType: String, weather: String? = nil, substrate: String? = nil, notes: String? = nil, location: CLLocation? = nil, timestamp: Date = Date()) {
-        self.id = UUID()
+    init(hasFootprint: Bool, animalType: String, traceType: String, weather: String? = nil, substrate: String? = nil, notes: String? = nil, location: CLLocation? = nil, timestamp: Date = Date(), id: UUID = UUID()) {
+        self.id = id
         self.hasFootprint = hasFootprint
         self.animalType = animalType
         self.traceType = traceType

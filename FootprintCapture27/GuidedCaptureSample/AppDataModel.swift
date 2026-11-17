@@ -10,7 +10,6 @@ import RealityKit
 import SwiftUI
 import os
 import CoreLocation
-import ARKit
 import AVFoundation
 
 private let logger = Logger(subsystem: GuidedCaptureSampleApp.subsystem,
@@ -274,10 +273,6 @@ extension AppDataModel {
             logger.log("^^^ Got nil from stateUpdates iterator!  Ending observation task...")
         })
         
-        // 🚀 リアルタイムプレビュー点群の監視を追加
-        tasks.append(Task<Void, Never> { [weak self] in
-            await self?.monitorPreviewPointCloud(session: model)
-        })
     }
 
     private func detachListeners() {
@@ -298,6 +293,12 @@ extension AppDataModel {
 
     // Public method to create new capture session (with camera permission guard)
     func createNewCaptureSession() {
+        guard state == .ready, objectCaptureSession == nil else { return }
+        guard ObjectCaptureSession.isSupported else {
+            cameraUnavailableMessage = "このデバイスはObject Captureをサポートしていません。"
+            showCameraUnavailableAlert = true
+            return
+        }
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         switch status {
         case .authorized:
@@ -318,26 +319,16 @@ extension AppDataModel {
                     } else {
                         self.cameraUnavailableMessage = "カメラ権限がありません。設定アプリから有効にしてください。"
                         self.showCameraUnavailableAlert = true
-                        self.showReadOnlyGallery = true
                     }
                 }
             }
         case .denied, .restricted:
             cameraUnavailableMessage = "カメラ権限がありません。設定アプリから有効にしてください。"
             showCameraUnavailableAlert = true
-            showReadOnlyGallery = true
         @unknown default:
             cameraUnavailableMessage = "カメラの利用可否を判定できません。もう一度お試しください。"
             showCameraUnavailableAlert = true
         }
-    }
-    
-    // Public method to load existing capture session
-    func loadExistingCaptureSession(folderURL: URL) throws {
-        // Create a custom capture folder manager for existing folder
-        // This would need modification to CaptureFolderManager to accept existing folder
-        captureFolderManager = try CaptureFolderManager()
-        // For now, we'll use the existing approach
     }
     
     // Should be called when a new capture is to be created, before the session will be needed.
@@ -360,7 +351,6 @@ extension AppDataModel {
             logger.error("ObjectCaptureSession is not supported on this device!")
             cameraUnavailableMessage = "このデバイスはObject Captureをサポートしていません。"
             showCameraUnavailableAlert = true
-            showReadOnlyGallery = true
             return
         }
 
@@ -370,7 +360,6 @@ extension AppDataModel {
             logger.error("startNewCapture() got unexpectedly nil session!")
             cameraUnavailableMessage = "キャプチャセッションの作成に失敗しました。"
             showCameraUnavailableAlert = true
-            showReadOnlyGallery = true
             return
         }
 
@@ -407,13 +396,16 @@ extension AppDataModel {
 
         if case let .failed(error) = session.state {
             logger.error("Got error starting session! \(String(describing: error))")
-            // エラーでも続行（エラー表示なし）
-            logger.log("Error occurred but continuing to capture state")
+            objectCaptureSession = nil
+            removeCaptureFolder()
+            captureFolderManager = nil
+            throw error
         }
         
         // キャプチャ開始時に縦画面固定を強制
         forcePortraitOrientationForCapture()
         
+        cameraUnavailableMessage = ""
         state = .capturing
     }
 
@@ -513,7 +505,7 @@ extension AppDataModel {
             logger.log("ObjectCaptureSession moved in .completed state.")
             if isSaveDraftEnabled {
                 logger.log("The data is stored. Closing the session...")
-                reset()
+                if state != .draftSaved { state = .draftSaved }
             } else {
                 logger.log("Switch app model to metadata input...")
                 state = .metadataInput
@@ -557,11 +549,7 @@ extension AppDataModel {
 
         switch toState {
             case .ready:
-                do {
-                    try startNewCapture()
-                } catch {
-                    logger.error("Starting new capture failed!")
-                }
+                createNewCaptureSession()
             case .prepareToReconstruct:
                 // Clean up the session to free GPU and memory resources.
                 objectCaptureSession = nil
@@ -1272,260 +1260,6 @@ extension AppDataModel {
                 logger.error("❌ Failed to save research grade point cloud: \(error)")
             }
         }
-    }
-    
-    /// リアルタイムプレビュー点群の監視（ARKit使用）
-    private func monitorPreviewPointCloud(session: ObjectCaptureSession) async {
-        logger.log("🔍 Starting real preview point cloud capture with ARKit...")
-        
-        // ARKitセッションを並行して開始し、実際の点群データを取得
-        await startARKitPreviewCapture()
-    }
-    
-    /// ARKitを使ってリアルタイム点群データを取得
-    @MainActor
-    private func startARKitPreviewCapture() async {
-        guard let captureFolderManager = captureFolderManager else { return }
-        
-        logger.log("🚀 Starting ARKit preview point cloud capture")
-        
-        // ARKitでリアルタイム点群を並行取得
-        let previewPointCloudFile = captureFolderManager.captureFolder.appendingPathComponent("preview_pointcloud.ply")
-        
-        // バックグラウンドでARKit点群データを蓄積
-        Task.detached {
-            await self.captureARKitPreviewData(outputURL: previewPointCloudFile)
-        }
-    }
-    
-    /// プレビュースナップショットをキャプチャ
-    @MainActor
-    private func capturePreviewSnapshot(session: ObjectCaptureSession) {
-        guard state == .capturing,
-              session.numberOfShotsTaken > 5 else { return } // 5枚以上撮影後
-        
-        logger.log("📸 Capturing preview snapshot at \(session.numberOfShotsTaken) shots")
-        
-        // ObjectCaptureSessionの内部状態から情報を抽出
-        let previewData = PreviewPointCloudData(
-            shotCount: session.numberOfShotsTaken,
-            timestamp: Date(),
-            boundingBox: estimateBoundingBox(session: session),
-            trackingQuality: getTrackingQuality(session: session)
-        )
-        
-        savePreviewSnapshot(data: previewData)
-    }
-    
-    /// プレビュースナップショットを保存
-    private func savePreviewSnapshot(data: PreviewPointCloudData) {
-        guard let captureFolderManager = captureFolderManager else { return }
-        
-        let previewFile = captureFolderManager.captureFolder.appendingPathComponent("preview_snapshots.json")
-        
-        do {
-            var snapshots: [PreviewPointCloudData] = []
-            
-            // 既存のスナップショットを読み込み
-            if FileManager.default.fileExists(atPath: previewFile.path) {
-                let existingData = try Data(contentsOf: previewFile)
-                snapshots = try JSONDecoder().decode([PreviewPointCloudData].self, from: existingData)
-            }
-            
-            snapshots.append(data)
-            
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let newData = try encoder.encode(snapshots)
-            try newData.write(to: previewFile)
-            
-            logger.log("💾 Preview snapshot saved: \(data.shotCount) shots")
-            
-        } catch {
-            logger.error("Failed to save preview snapshot: \(error)")
-        }
-    }
-    
-    /// バウンディングボックス推定
-    private func estimateBoundingBox(session: ObjectCaptureSession) -> [Float] {
-        // セッション情報から推定されるバウンディングボックス
-        // 実際の実装では、セッションの内部データを使用
-        return [0.0, 0.0, 0.0, 1.0, 1.0, 1.0] // x,y,z,width,height,depth
-    }
-    
-    /// トラッキング品質取得
-    private func getTrackingQuality(session: ObjectCaptureSession) -> String {
-        // フィードバック情報から品質を判定
-        let feedback = session.feedback
-        
-        if feedback.contains(.objectTooClose) || feedback.contains(.objectTooFar) {
-            return "poor"
-        } else if feedback.contains(.objectNotFlippable) {
-            return "limited"
-        } else if session.numberOfShotsTaken > 20 {
-            return "good"
-        } else {
-            return "fair"
-        }
-    }
-    
-    /// ObjectCaptureSessionから直接プレビューデータを取得・保存
-    private func captureARKitPreviewData(outputURL: URL) async {
-        logger.log("📡 Extracting preview point cloud from ObjectCaptureSession")
-        
-        var accumulatedPoints: [SIMD3<Float>] = []
-        var accumulatedColors: [SIMD4<Float>] = []
-        let maxPoints = 500000 // 高密度プレビュー：50万点
-        
-        // ObjectCaptureSessionが動作中のみ
-        while await MainActor.run { self.state == .capturing } && accumulatedPoints.count < maxPoints {
-            
-            // ObjectCaptureSessionの内部状態から点群データを抽出試行
-            if let session = await MainActor.run { self.objectCaptureSession } {
-                let extractedData = await extractPreviewDataFromSession(session: session)
-                accumulatedPoints.append(contentsOf: extractedData.points)
-                accumulatedColors.append(contentsOf: extractedData.colors)
-                
-                if accumulatedPoints.count % 5000 == 0 && accumulatedPoints.count > 0 {
-                    logger.log("📊 Preview extracted: \(accumulatedPoints.count) points from ObjectCaptureSession")
-                }
-            }
-            
-            // 1秒間隔で更新（高密度キャプチャ）
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-        }
-        
-        // プレビュー点群を保存
-        if accumulatedPoints.count > 0 {
-            await savePreviewPointCloud(points: accumulatedPoints, colors: accumulatedColors, url: outputURL)
-        } else {
-            logger.log("⚠️ No preview data extracted from ObjectCaptureSession")
-        }
-    }
-    
-    /// ObjectCaptureSessionからプレビューデータを抽出
-    @MainActor
-    private func extractPreviewDataFromSession(session: ObjectCaptureSession) async -> (points: [SIMD3<Float>], colors: [SIMD4<Float>]) {
-        var points: [SIMD3<Float>] = []
-        var colors: [SIMD4<Float>] = []
-        
-        // ObjectCaptureSessionの撮影状況に基づいて疑似的にプレビューデータを生成
-        let shotCount = session.numberOfShotsTaken
-        let feedback = session.feedback
-        
-        if shotCount > 0 {
-            // 🚀 超高密度点群生成：撮影枚数に基づいて指数的に密度増加
-            let basePointsPerShot = min(1000, shotCount * 50) // 大幅に点数増加
-            let densityMultiplier = min(10, shotCount / 5 + 1) // 撮影が進むほど密度アップ
-            let totalPoints = basePointsPerShot * densityMultiplier
-            
-            logger.log("🔥 Generating \(totalPoints) high-density points for \(shotCount) shots")
-            
-            for i in 0..<totalPoints {
-                // 🎯 超細密足跡スキャン：ミリ単位の詳細
-                let gridSize: Float = 0.6 // 60cm四方のエリア
-                let resolution = Float(totalPoints).squareRoot() // 密度に応じた解像度
-                
-                let gridX = Float(i % Int(resolution)) / resolution - 0.5
-                let gridY = Float(i / Int(resolution)) / resolution - 0.5
-                
-                // 足跡の細かい起伏を模擬
-                let noiseX = Float.random(in: -0.002...0.002) // 2mm精度のノイズ
-                let noiseY = Float.random(in: -0.002...0.002)
-                let noiseZ = Float.random(in: -0.001...0.001) // 1mm精度の高さ変動
-                
-                let x = gridX * gridSize + noiseX
-                let y = gridY * gridSize + noiseY
-                
-                // 足跡の形状を模擬（中央が深い）
-                let distanceFromCenter = sqrt(gridX * gridX + gridY * gridY)
-                let footprintDepth = max(0, (0.3 - distanceFromCenter) * 0.02) // 最大2cm深
-                let z = -footprintDepth + noiseZ
-                
-                points.append(SIMD3<Float>(x, y, z))
-                
-                // 🎨 高品質カラーマッピング：深度と材質を表現
-                let quality = feedback.isEmpty ? 1.0 : 0.8
-                let depthFactor = 1.0 - min(1.0, distanceFromCenter * 2)
-                
-                let color = SIMD4<Float>(
-                    Float(0.6 + 0.3 * depthFactor) * Float(quality), // 茶色基調
-                    Float(0.4 + 0.2 * depthFactor) * Float(quality),
-                    Float(0.2 + 0.1 * depthFactor) * Float(quality),
-                    1.0
-                )
-                colors.append(color)
-            }
-        }
-        
-        return (points, colors)
-    }
-    
-    /// シミュレートされたプレビュー点群を生成（実際の実装ではARSession使用）
-    private func generateSimulatedPreviewPoints() -> (points: [SIMD3<Float>], colors: [SIMD4<Float>]) {
-        var points: [SIMD3<Float>] = []
-        var colors: [SIMD4<Float>] = []
-        
-        // ランダムな点群を少数生成（実際はLiDARデータ）
-        for _ in 0..<100 {
-            let x = Float.random(in: -0.5...0.5)
-            let y = Float.random(in: -0.5...0.5) 
-            let z = Float.random(in: 0.5...2.0)
-            points.append(SIMD3<Float>(x, y, z))
-            
-            let color = SIMD4<Float>(Float.random(in: 0...1), Float.random(in: 0...1), Float.random(in: 0...1), 1.0)
-            colors.append(color)
-        }
-        
-        return (points, colors)
-    }
-    
-    /// プレビュー点群をPLY形式で保存
-    private func savePreviewPointCloud(points: [SIMD3<Float>], colors: [SIMD4<Float>], url: URL) async {
-        logger.log("💾 Saving preview point cloud: \(points.count) points to \(url.lastPathComponent)")
-        
-        do {
-            var plyContent = """
-            ply
-            format ascii 1.0
-            comment ObjectCapture Preview Point Cloud
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            for (index, point) in points.enumerated() {
-                let color = index < colors.count ? colors[index] : SIMD4<Float>(1, 1, 1, 1)
-                
-                plyContent += String(format: "%.6f %.6f %.6f %d %d %d %d\n",
-                    point.x, point.y, point.z,
-                    Int(color.x * 255), Int(color.y * 255), Int(color.z * 255), Int(color.w * 255))
-            }
-            
-            try plyContent.write(to: url, atomically: true, encoding: .utf8)
-            await MainActor.run {
-                logger.log("✅ Preview point cloud saved: \(points.count) points")
-            }
-            
-        } catch {
-            await MainActor.run {
-                logger.error("❌ Failed to save preview point cloud: \(error)")
-            }
-        }
-    }
-    
-    struct PreviewPointCloudData: Codable {
-        let shotCount: Int
-        let timestamp: Date
-        let boundingBox: [Float]
-        let trackingQuality: String
     }
     
     enum AppError: Error, LocalizedError {

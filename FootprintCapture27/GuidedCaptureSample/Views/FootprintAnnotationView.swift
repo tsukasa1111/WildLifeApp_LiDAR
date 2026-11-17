@@ -14,6 +14,7 @@ struct FootprintAnnotationView: View {
     
     @State private var annotations: [FootprintAnnotation] = []
     @State private var showingSaveConfirmation = false
+    @State private var showingSaveError = false
     @State private var dragOffset: CGSize = .zero
     @State private var dragAnnotation: FootprintAnnotation?
     @State private var scaleAnnotation: FootprintAnnotation?
@@ -28,11 +29,13 @@ struct FootprintAnnotationView: View {
     
     let captureImage: UIImage
     let captureFolderManager: CaptureFolderManager
+    var sourceImageName: String? = nil
     let onSaveComplete: (() -> Void)?
     
-    init(captureImage: UIImage, captureFolderManager: CaptureFolderManager, onSaveComplete: (() -> Void)? = nil) {
+    init(captureImage: UIImage, captureFolderManager: CaptureFolderManager, sourceImageName: String? = nil, onSaveComplete: (() -> Void)? = nil) {
         self.captureImage = captureImage
         self.captureFolderManager = captureFolderManager
+        self.sourceImageName = sourceImageName
         self.onSaveComplete = onSaveComplete
     }
     
@@ -109,8 +112,11 @@ struct FootprintAnnotationView: View {
                     annotationsCount: annotations.count,
                     onCancel: { dismiss() },
                     onSave: {
-                        saveAnnotatedImage()
-                        showingSaveConfirmation = true
+                        if saveAnnotatedImage() {
+                            showingSaveConfirmation = true
+                        } else {
+                            showingSaveError = true
+                        }
                     }
                 )
             }
@@ -132,6 +138,11 @@ struct FootprintAnnotationView: View {
             }
         } message: {
             Text("\(annotations.count)個の足跡マーカーと共に画像が保存されました。")
+        }
+        .alert("保存できませんでした", isPresented: $showingSaveError) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("空き容量とキャプチャフォルダを確認して、もう一度保存してください。")
         }
         .alert("足跡を削除", isPresented: $showDeleteConfirmation) {
             Button("削除", role: .destructive) {
@@ -394,7 +405,7 @@ struct FootprintAnnotationView: View {
         logger.log("Cleared all annotations")
     }
     
-    private func saveAnnotatedImage() {
+    private func saveAnnotatedImage() -> Bool {
         let originalImage = processedImage ?? captureImage
         let renderer = ImageRenderer(content: createAnnotatedImageView())
         
@@ -403,7 +414,7 @@ struct FootprintAnnotationView: View {
         renderer.scale = 1.0  // 等倍でレンダリング（サイズブーストを活かす）
         
         if let annotatedImage = renderer.uiImage {
-            saveImageToFolder(annotatedImage)
+            guard saveImageToFolder(annotatedImage) else { return false }
             logger.log("✅ Successfully rendered annotated image at size: \(String(describing: annotatedImage.size)), scale: \(renderer.scale)x")
             
             // 足跡サイズの確認ログ
@@ -415,7 +426,9 @@ struct FootprintAnnotationView: View {
             }
         } else {
             logger.error("❌ Failed to render annotated image")
+            return false
         }
+        return true
     }
     
     private func createAnnotatedImageView() -> some View {
@@ -435,52 +448,8 @@ struct FootprintAnnotationView: View {
                     SavedFootprintMarker(
                         annotation: annotation,
                         annotationIndex: index,
-                        showBoundingBox: true   // デバッグ: 境界を表示
+                        showBoundingBox: false
                     )
-                    
-                    // デバッグ用境界ボックス（中心基準確認）
-                    if true { // デバッグ: 中心位置と境界を確認
-                        ZStack {
-                            // 保存時の境界矩形を表示
-                            let bounds = annotation.saveBoundingSize
-                            Rectangle()
-                                .stroke(Color.orange, lineWidth: 3)
-                                .background(Color.orange.opacity(0.1))
-                                .frame(width: bounds.width, height: bounds.height)
-                            
-                            // 表示時のサイズを青で表示
-                            Circle()
-                                .stroke(Color.blue, lineWidth: 1)
-                                .frame(
-                                    width: annotation.size.iconSize * annotation.scaleMultiplier,
-                                    height: annotation.size.iconSize * annotation.scaleMultiplier
-                                )
-                            
-                            // 保存時のサイズを赤で表示
-                            Circle()
-                                .stroke(Color.red, lineWidth: 2)
-                                .frame(
-                                    width: SavedFootprintMarker.calculateSaveSize(for: annotation),
-                                    height: SavedFootprintMarker.calculateSaveSize(for: annotation)
-                                )
-                            
-                            // 中心点
-                            Circle()
-                                .fill(Color.green)
-                                .frame(width: 6, height: 6)
-                            
-                            // 境界情報ラベル
-                            VStack {
-                                Spacer()
-                                Text("\(Int(bounds.width))x\(Int(bounds.height))")
-                                    .font(.caption2)
-                                    .foregroundColor(.orange)
-                                    .background(Color.white.opacity(0.8))
-                                    .cornerRadius(4)
-                                    .offset(y: bounds.height / 2 + 10)
-                            }
-                        }
-                    }
                 }
                 .position(
                     x: annotation.position.x * imageToUse.size.width,
@@ -492,7 +461,7 @@ struct FootprintAnnotationView: View {
         .clipped()
     }
     
-    private func saveImageToFolder(_ image: UIImage) {
+    private func saveImageToFolder(_ image: UIImage) -> Bool {
         let annotatedImageURL = captureFolderManager.captureFolder
             .appendingPathComponent("annotated_footprints.jpg")
         
@@ -501,17 +470,18 @@ struct FootprintAnnotationView: View {
         
         if let imageData = correctedImage.jpegData(compressionQuality: 0.95) {
             do {
-                try imageData.write(to: annotatedImageURL)
+                try imageData.write(to: annotatedImageURL, options: .atomic)
                 
                 // 詳細なサイズ情報をログ出力
                 let metadata = AnnotationMetadata(
                     annotations: annotations,
                     imageSize: CGSize(width: captureImage.size.width, height: captureImage.size.height),
-                    timestamp: Date()
+                    timestamp: Date(),
+                    sourceImageName: sourceImageName
                 )
                 
                 // Save annotation metadata
-                saveAnnotationMetadata(metadata)
+                try saveAnnotationMetadata(metadata)
                 let stats = metadata.sizeStatistics
                 
                 logger.log("=== 保存する足跡情報 (\(annotations.count)個) ===")
@@ -526,10 +496,12 @@ struct FootprintAnnotationView: View {
                 logger.log("=== 保存完了: annotated_footprints.jpg ===")
                 
                 logger.log("✅ Successfully saved annotated image with \(annotations.count) footprints")
+                return true
             } catch {
                 logger.error("Failed to save annotated image: \(error)")
             }
         }
+        return false
     }
     
     
@@ -546,6 +518,12 @@ struct FootprintAnnotationView: View {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let existingMetadata = try decoder.decode(AnnotationMetadata.self, from: data)
+            if let savedImageName = existingMetadata.sourceImageName,
+               let sourceImageName,
+               savedImageName != sourceImageName {
+                annotations = []
+                return
+            }
             annotations = existingMetadata.annotations
             logger.log("Loaded \(annotations.count) existing annotations")
         } catch {
@@ -554,19 +532,15 @@ struct FootprintAnnotationView: View {
         }
     }
     
-    private func saveAnnotationMetadata(_ metadata: AnnotationMetadata) {
+    private func saveAnnotationMetadata(_ metadata: AnnotationMetadata) throws {
         let metadataURL = captureFolderManager.captureFolder
             .appendingPathComponent("footprint_annotations.json")
         
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            let data = try encoder.encode(metadata)
-            try data.write(to: metadataURL)
-            logger.log("Saved annotation metadata")
-        } catch {
-            logger.error("Failed to save annotation metadata: \(error)")
-        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(metadata)
+        try data.write(to: metadataURL, options: .atomic)
+        logger.log("Saved annotation metadata")
     }
     
     // Moved to Utils/OrientationTransform.swift

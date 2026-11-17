@@ -79,7 +79,7 @@ struct PrimaryView: View {
         } else if appModel.state == .draftSaved {
             DraftSavedView()
         } else if showProgressView {
-            if isCameraUnavailable() {
+            if isCameraUnavailable() || !appModel.cameraUnavailableMessage.isEmpty {
                 ReadOnlyGalleryContainer()
                     .environmentObject(appModel)
             } else {
@@ -103,10 +103,14 @@ private struct ReadOnlyGalleryContainer: View {
 
     var body: some View {
         NavigationView {
-            GC_GalleryView(showCaptureFolders: $show)
+            GC_GalleryView(showCaptureFolders: $show, showsCloseButton: false)
                 .navigationTitle("キャプチャ一覧")
                 .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("閉じる") { /* inline */ } } }
+                .toolbar {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("撮影を開始") { appModel.createNewCaptureSession() }
+                    }
+                }
         }
     }
 }

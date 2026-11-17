@@ -83,6 +83,13 @@ struct TopOverlayButtons: View, OverlayButtons {
             }
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
+        .sheet(isPresented: $showCaptureFolders) {
+            GC_GalleryView(showCaptureFolders: $showCaptureFolders)
+                .environmentObject(appModel)
+        }
+        .onChange(of: showCaptureFolders) { _, showing in
+            appModel.setShowOverlaySheets(to: showing)
+        }
     }
 }
 
@@ -1096,7 +1103,7 @@ private struct ThumbnailView: View {
 }
 */
 
-private struct SessionDetailView: View {
+struct SessionDetailView: View {
     @EnvironmentObject var appModel: AppDataModel
     @Environment(\.dismiss) private var dismiss
     let captureFolderURL: URL
@@ -1107,6 +1114,7 @@ private struct SessionDetailView: View {
     @State private var isReconstructing = false
     @State private var reconstructionProgress: Double = 0.0
     @State private var reconstructionError: String?
+    @State private var metadataSaveError: String?
     @State private var showModel = false
     @State private var modelURL: URL?
     @State private var thumbnailImage: CGImage?
@@ -1120,15 +1128,13 @@ private struct SessionDetailView: View {
     @State private var selectedImageIndex: Int = 2  // 3枚目をデフォルト（0ベース）
     @State private var availableImages: [URL] = []
     
-    init(captureFolderURL: URL, hasModel: Bool, imageCount: Int, onModelGenerated: (() -> Void)? = nil) {
+    init(captureFolderURL: URL, imageCount: Int, onModelGenerated: (() -> Void)? = nil) {
         self.captureFolderURL = captureFolderURL
         self.onModelGenerated = onModelGenerated
         
         // Re-check model existence to ensure accuracy
         let modelsFolder = captureFolderURL.appendingPathComponent("Models")
         let actualHasModel = Self.hasAnyModel(in: modelsFolder)
-        print("DEBUG SessionDetailView: Folder \(captureFolderURL.lastPathComponent)")
-        print("DEBUG SessionDetailView: Passed hasModel: \(hasModel), Actual hasModel: \(actualHasModel)")
         
         self._hasModel = State(initialValue: actualHasModel)
         self.imageCount = imageCount
@@ -1155,6 +1161,21 @@ private struct SessionDetailView: View {
                     heroSection
                     contentSections
                 }
+            }
+            .navigationTitle("キャプチャ詳細")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+            .alert("詳細情報を保存できませんでした", isPresented: Binding(
+                get: { metadataSaveError != nil },
+                set: { if !$0 { metadataSaveError = nil } }
+            )) {
+                Button("OK", role: .cancel) { metadataSaveError = nil }
+            } message: {
+                Text(metadataSaveError ?? "")
             }
         }
     }
@@ -1211,8 +1232,9 @@ private struct SessionDetailView: View {
                         InlineEditableMetadataCard(
                             metadata: $traceMetadata,
                             onSave: { updatedMetadata in
-                                saveMetadata(updatedMetadata)
-                                isEditingMetadata = false
+                                if saveMetadata(updatedMetadata) {
+                                    isEditingMetadata = false
+                                }
                             },
                             onCancel: {
                                 isEditingMetadata = false
@@ -1231,6 +1253,7 @@ private struct SessionDetailView: View {
                                     showFootprintAnnotation = true
                                 }
                                 .buttonStyle(.borderedProminent)
+                                .disabled(availableImages.isEmpty)
                             }
                             
                             Button("詳細情報を編集") {
@@ -1292,30 +1315,23 @@ private struct SessionDetailView: View {
             loadAvailableImages()
         }
         .sheet(isPresented: $showFootprintAnnotation) {
-            GC_FootprintConfirmationView(
-                availableImages: availableImages,
-                initialSelectedIndex: selectedImageIndex,
-                captureFolderManager: createCaptureFolderManager(),
-                onDismiss: {
-                    showFootprintAnnotation = false
-                    // 編集完了後に画像を再読み込み
-                    checkForAnnotatedImage()
-                }
-            )
+            if let manager = try? CaptureFolderManager(existingFolder: captureFolderURL) {
+                GC_FootprintConfirmationView(
+                    availableImages: availableImages,
+                    initialSelectedIndex: selectedImageIndex,
+                    captureFolderManager: manager,
+                    onDismiss: {
+                        showFootprintAnnotation = false
+                        checkForAnnotatedImage()
+                    }
+                )
+            } else {
+                Text("キャプチャフォルダを開けませんでした")
+            }
         }
     }
     
     // MARK: - Helper Methods
-    
-    private func createCaptureFolderManager() -> CaptureFolderManager {
-        do {
-            return try CaptureFolderManager(existingFolder: captureFolderURL)
-        } catch {
-            // Fallback - this shouldn't happen in normal use
-            logger.error("Failed to create CaptureFolderManager: \(error)")
-            return try! CaptureFolderManager()
-        }
-    }
     
     private func loadThumbnail() {
         guard let imageURL = getFirstImage(from: captureFolderURL) else { return }
@@ -1339,10 +1355,13 @@ private struct SessionDetailView: View {
                 options: []
             )
             .filter { !$0.hasDirectoryPath }
-            .filter { ["jpg", "jpeg", "heic"].contains($0.pathExtension.lowercased()) }
+            .filter { ["jpg", "jpeg", "heic", "png"].contains($0.pathExtension.lowercased()) }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             
             availableImages = imageFiles
+            if selectedImageIndex >= imageFiles.count {
+                selectedImageIndex = max(0, imageFiles.count - 1)
+            }
         } catch {
             logger.error("Failed to load available images: \(error)")
             availableImages = []
@@ -1529,43 +1548,23 @@ private struct SessionDetailView: View {
         }
     }
     
-    private func saveMetadata(_ metadata: TraceMetadata) {
+    @discardableResult
+    private func saveMetadata(_ metadata: TraceMetadata) -> Bool {
         let metadataFile = captureFolderURL.appendingPathComponent("metadata.json")
         
         do {
-            // Ensure directory exists
-            try FileManager.default.createDirectory(at: captureFolderURL, withIntermediateDirectories: true)
-            
             let encoder = JSONEncoder()
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = .prettyPrinted
             let data = try encoder.encode(metadata)
             try data.write(to: metadataFile, options: .atomic)
-            
-            // Update the local state
-            DispatchQueue.main.async {
-                self.traceMetadata = metadata
-            }
-            
-            print("DEBUG: Metadata saved successfully to: \(metadataFile.path)")
-            print("DEBUG: Saved metadata: \(metadata)")
-            
-            // Verify the file was written
-            if FileManager.default.fileExists(atPath: metadataFile.path) {
-                print("DEBUG: Metadata file exists after save")
-                
-                // Try to read it back to verify
-                if let savedData = try? Data(contentsOf: metadataFile),
-                   let savedString = String(data: savedData, encoding: .utf8) {
-                    print("DEBUG: Saved file content: \(savedString)")
-                }
-            } else {
-                print("DEBUG: ERROR - Metadata file does not exist after save!")
-            }
-            
+            traceMetadata = metadata
+            logger.log("Metadata saved")
+            return true
         } catch {
-            print("DEBUG: Failed to save metadata: \(error)")
             logger.error("Failed to save metadata: \(error)")
+            metadataSaveError = error.localizedDescription
+            return false
         }
     }
     
@@ -2056,19 +2055,14 @@ private struct SessionDetailView: View {
             let metadata = try decoder.decode(TraceMetadata.self, from: data)
             self.traceMetadata = metadata
             logger.log("Loaded metadata: \(metadata.animalType) - \(metadata.traceType)")
-            print("DEBUG: Loaded metadata location: \(metadata.location)")
         } catch {
             logger.error("Failed to load metadata: \(error)")
         }
     }
     
     private func getBasicInfo() -> (timestamp: Date?, location: CLLocation?) {
-        print("DEBUG: getBasicInfo called")
-        print("DEBUG: traceMetadata: \(traceMetadata)")
-        
         // Try to get info from metadata first
         if let metadata = traceMetadata {
-            print("DEBUG: Using metadata - location: \(metadata.location)")
             return (metadata.timestamp, metadata.location)
         }
         
@@ -2076,13 +2070,12 @@ private struct SessionDetailView: View {
         let timestamp = getFolderCreationDate()
         let location = getLocationFromFolder()
         
-        print("DEBUG: Using fallback - location: \(location)")
         return (timestamp, location)
     }
     
     private func getFolderCreationDate() -> Date? {
         let formatter = ISO8601DateFormatter()
-        return formatter.date(from: captureFolderURL.lastPathComponent)
+        return formatter.date(from: String(captureFolderURL.lastPathComponent.prefix(20)))
     }
     
     private func getLocationFromFolder() -> CLLocation? {
@@ -2153,9 +2146,6 @@ private struct SessionDetailView: View {
             
             // Try to get location from metadata first, then from saved location
             let (_, location) = getBasicInfo()
-            let _ = print("DEBUG: LocationInfoSection - metadata location: \(traceMetadata?.location)")
-            let _ = print("DEBUG: LocationInfoSection - getBasicInfo location: \(location)")
-            
             if let location = location {
                 VStack(alignment: .leading, spacing: 12) {
                     // Coordinates Info

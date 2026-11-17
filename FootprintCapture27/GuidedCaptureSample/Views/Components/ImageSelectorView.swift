@@ -1,4 +1,43 @@
 import SwiftUI
+import ImageIO
+
+struct LocalImageThumbnail: View {
+    let url: URL
+    let size: CGFloat
+    @State private var thumbnail: CGImage?
+    @State private var finishedLoading = false
+
+    var body: some View {
+        ZStack {
+            Color.gray.opacity(0.2)
+            if let thumbnail {
+                Image(decorative: thumbnail, scale: 1.0)
+                    .resizable()
+                    .scaledToFill()
+            } else if finishedLoading {
+                Image(systemName: "photo")
+                    .foregroundColor(.secondary)
+            } else {
+                ProgressView()
+            }
+        }
+        .frame(width: size, height: size)
+        .clipped()
+        .task(id: url) {
+            thumbnail = nil
+            finishedLoading = false
+            let options: [CFString: Any] = [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: Int(size * 2)
+            ]
+            if let source = CGImageSourceCreateWithURL(url as CFURL, nil) {
+                thumbnail = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary)
+            }
+            finishedLoading = true
+        }
+    }
+}
 
 // MARK: - Image Selector View
 
@@ -14,22 +53,8 @@ struct ImageSelectorView: View {
                 ForEach(Array(availableImages.enumerated()), id: \.offset) { index, imageURL in
                     HStack {
                         // サムネイル画像
-                        AsyncImage(url: imageURL) { image in
-                            image
-                                .resizable()
-                                .aspectRatio(contentMode: .fill)
-                                .frame(width: 60, height: 60)
-                                .clipped()
-                                .cornerRadius(8)
-                        } placeholder: {
-                            RoundedRectangle(cornerRadius: 8)
-                                .fill(Color.gray.opacity(0.3))
-                                .frame(width: 60, height: 60)
-                                .overlay(
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                )
-                        }
+                        LocalImageThumbnail(url: imageURL, size: 60)
+                            .cornerRadius(8)
                         
                         VStack(alignment: .leading, spacing: 4) {
                             Text("画像 \(index + 1)")

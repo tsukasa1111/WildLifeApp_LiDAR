@@ -10,32 +10,35 @@ struct InlineEditableMetadataCard: View {
     @State private var otherAnimal: String = ""
     @State private var traceType: String
     @State private var weather: String
-    @State private var softness: Int
+    @State private var substrate: String
     @State private var notes: String
 
     let animalTypes = ["イノシシ", "シカ", "その他"]
-    let traceTypes = ["足跡", "糞", "食痕", "爪痕", "その他"]
-    let weatherOptions = ["晴れ", "曇り", "雨", "雪", "霧"]
-    let softnessOptions = [1,2,3,4,5]
+    let traceTypes = ["足跡", "糞", "食痕", "爪痕", "その他", "調査地点"]
+    let weatherOptions = ["晴れ", "曇り", "雨", "雪", "霧", "その他"]
+    let substrateOptions = ["硬い", "普通", "柔らかい"]
 
     init(metadata: Binding<TraceMetadata?>, onSave: @escaping (TraceMetadata) -> Void, onCancel: @escaping () -> Void) {
+        let recognizedAnimals = ["イノシシ", "シカ"]
         self._traceMetadata = metadata
         self.onSave = onSave
         self.onCancel = onCancel
 
         if let m = metadata.wrappedValue {
             self._hasFootprint = State(initialValue: m.hasFootprint)
-            self._animalType = State(initialValue: m.animalType)
+            self._animalType = State(initialValue: recognizedAnimals.contains(m.animalType) ? m.animalType : "その他")
+            self._otherAnimal = State(initialValue: recognizedAnimals.contains(m.animalType) ? "" : m.animalType)
             self._traceType = State(initialValue: m.traceType)
-            self._weather = State(initialValue: m.weather ?? "晴れ")
-            if let s = m.substrate, let level = Int(s) { self._softness = State(initialValue: level) } else { self._softness = State(initialValue: 3) }
+            self._weather = State(initialValue: m.weather ?? "未記録")
+            self._substrate = State(initialValue: m.substrate ?? "未記録")
             self._notes = State(initialValue: m.notes ?? "")
         } else {
             self._hasFootprint = State(initialValue: true)
             self._animalType = State(initialValue: "イノシシ")
+            self._otherAnimal = State(initialValue: "")
             self._traceType = State(initialValue: "足跡")
-            self._weather = State(initialValue: "晴れ")
-            self._softness = State(initialValue: 3)
+            self._weather = State(initialValue: "未記録")
+            self._substrate = State(initialValue: "未記録")
             self._notes = State(initialValue: "")
         }
     }
@@ -61,6 +64,7 @@ struct InlineEditableMetadataCard: View {
                 }
 
                 // 動物の種類
+                if hasFootprint {
                 VStack(alignment: .leading, spacing: 8) {
                     Label("動物の種類", systemImage: "hare.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.blue)
                     Picker("動物の種類", selection: $animalType) { ForEach(animalTypes, id: \.self) { Text($0).tag($0) } }
@@ -70,6 +74,7 @@ struct InlineEditableMetadataCard: View {
                 .padding()
                 .background(Color(UIColor.secondarySystemBackground))
                 .cornerRadius(12)
+                }
 
                 // 痕跡の種類
                 VStack(alignment: .leading, spacing: 8) {
@@ -85,8 +90,10 @@ struct InlineEditableMetadataCard: View {
                 // 天候
                 VStack(alignment: .leading, spacing: 8) {
                     Label("天候", systemImage: "cloud.sun.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.orange)
-                    Picker("天候", selection: $weather) { ForEach(weatherOptions, id: \.self) { Text($0).tag($0) } }
-                        .pickerStyle(.segmented)
+                    Picker("天候", selection: $weather) {
+                        ForEach(["未記録"] + weatherOptions + (weatherOptions.contains(weather) || weather == "未記録" ? [] : [weather]), id: \.self) { Text($0).tag($0) }
+                    }
+                        .pickerStyle(.menu)
                 }
                 .padding()
                 .background(Color(UIColor.secondarySystemBackground))
@@ -95,7 +102,9 @@ struct InlineEditableMetadataCard: View {
                 // 地面の柔らかさ
                 VStack(alignment: .leading, spacing: 8) {
                     Label("地面の柔らかさ", systemImage: "hand.point.down.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.brown)
-                    Picker("地面の柔らかさ", selection: $softness) { ForEach(softnessOptions, id: \.self) { Text("\($0)").tag($0) } }
+                    Picker("地面の柔らかさ", selection: $substrate) {
+                        ForEach(["未記録"] + substrateOptions + (substrateOptions.contains(substrate) || substrate == "未記録" ? [] : [substrate]), id: \.self) { Text($0).tag($0) }
+                    }
                         .pickerStyle(.wheel).frame(height: 120)
                 }
                 .padding()
@@ -110,7 +119,9 @@ struct InlineEditableMetadataCard: View {
                 HStack {
                     Button("キャンセル", action: onCancel)
                     Spacer()
-                    Button("保存") { onSave(composeMetadata()) }.buttonStyle(.borderedProminent)
+                    Button("保存") { onSave(composeMetadata()) }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(hasFootprint && animalType == "その他" && otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
@@ -118,19 +129,23 @@ struct InlineEditableMetadataCard: View {
         .background(Color(UIColor.secondarySystemBackground))
         .cornerRadius(16)
         .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
+        .onChange(of: hasFootprint) { _, newValue in
+            traceType = newValue ? "足跡" : "調査地点"
+        }
     }
 
     private func composeMetadata() -> TraceMetadata {
-        let finalAnimal = (animalType == "その他") ? otherAnimal : animalType
+        let finalAnimal = hasFootprint ? ((animalType == "その他") ? otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines) : animalType) : ""
         return TraceMetadata(
             hasFootprint: hasFootprint,
             animalType: finalAnimal,
-            traceType: traceType,
-            weather: weather,
-            substrate: String(softness),
+            traceType: hasFootprint ? traceType : "調査地点",
+            weather: weather == "未記録" ? nil : weather,
+            substrate: substrate == "未記録" ? nil : substrate,
             notes: notes.isEmpty ? nil : notes,
             location: traceMetadata?.location,
-            timestamp: traceMetadata?.timestamp ?? Date()
+            timestamp: traceMetadata?.timestamp ?? Date(),
+            id: traceMetadata?.id ?? UUID()
         )
     }
 }
