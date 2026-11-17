@@ -1,0 +1,271 @@
+/*
+See the LICENSE.txt file for this sample's licensing information.
+
+Abstract:
+Japanese Localizable String file.
+*/
+
+/* Title for cancel button on the folder view.
+   Title for cancel button on the object capture screen. */
+"Cancel (Object Capture)" = "キャンセル";
+
+/* Button title to cancel reconstruction */
+"Cancel (Object Reconstruction)" = "キャンセル";
+
+/* Title for done button on the object capture screen. */
+"Done (Object Capture)" = "完了";
+
+/* Title for next button on the object capture screen. */
+"Next (Object Capture)" = "次へ";
+
+/* Title for the folder view. */
+"Captures (Object Capture)" = "キャプチャ";
+
+/* Title for finish button on the review screen. */
+"Finish (Object Capture, Review)" = "完了";
+
+/* Title for process button on the review screen. */
+"Process (Object Capture, Review)" = "処理";
+
+/* Title for start capture button on the object capture screen. */
+"Start Capture (Object Capture)" = "撮影開始";
+
+/* Title for continue button on the object capture screen. */
+"Continue (Object Capture, Capture)" = "撮影開始";
+
+/* Title of button to continue to flip the object and capture more. */
+"Continue (Object Capture, Review)" = "続行";
+
+/* Title for skip button on the review screen. */
+"Skip (Object Capture, Review)" = "スキップ";
+
+/* Title for button to finish the session and run reconstruction later. */
+"Save Draft (Object Capture, Review)" = "下書き保存";
+
+/* Additional Review Screen Buttons */
+"Can't flip your object? (Object Capture, Review)" = "オブジェクトを裏返せませんか？";
+"Flip object anyway (Object Capture, Review)" = "とにかく裏返す";
+"Cancel button (Object Capture, Review)" = "キャンセル";
+
+/* Title for help button on the object capture screen to show the tutorial pages. */
+"Help (Object Capture)" = "ヘルプ";
+
+/* Title for resetting bounding box on the object capture screen. */
+"Reset Box (Object Capture)" = "ボックスリセット";
+
+/* Object mode tips for capture types page in the object capture help screen. */
+"Object Mode (Help, Object Capture)" = "オブジェクトモード";
+
+/* Title for area mode guidance text. */
+"Area mode (Object Capture)" = "エリアモード";
+
+/* Title for object mode guidance text. */
+"Object mode (Object Capture)" = "オブジェクトモード";
+
+/* Processing title for object reconstruction. */
+"Processing (Object Capture)" = "処理中…";
+
+/* Title of processing view during processing phase. */
+"Processing title (Object Capture)" = "処理中";
+
+/* Feedback message during the object reconstruction phase. */
+"Pre-Processing (Reconstruction)" = "前処理中…";
+
+/* Feedback message during the object reconstruction phase. */
+"Aligning Images (Reconstruction)" = "画像位置合わせ中…";
+
+/* Feedback message during the object reconstruction phase. */
+"Generating Point Cloud (Reconstruction)" = "点群生成中…";
+
+/* Feedback message during the object reconstruction phase. */
+"Generating Mesh (Reconstruction)" = "メッシュ生成中…";
+
+/* Feedback message during the object reconstruction phase. */
+"Mapping Texture (Reconstruction)" = "テクスチャマッピング中…";
+
+/* Feedback message during the object reconstruction phase. */
+"Optimizing (Reconstruction)" = "最適化中…";
+
+/* Custom strings for our new UI */
+"View 3D Model" = "3Dモデルを見る";
+"Generate 3D Model" = "3Dモデルを生成";
+"Regenerate 3D Model" = "3Dモデルを再生成";
+"Share Capture" = "キャプチャを共有";
+"3D Model Available" = "3Dモデル利用可能";
+"Photos Only" = "写真のみ";
+"Capture Details" = "キャプチャ詳細";
+"images captured" = "枚撮影";
+"Reconstructing..." = "再構築中...";
+"Reconstruction failed:" = "再構築に失敗:";
+"Processing was cancelled" = "処理がキャンセルされました";
+
+/* Hard-coded UI strings that need localization */
+"Show capture positions" = "撮影位置を表示";
+"Failed: " = "失敗: ";
+
+/* Additional common UI strings */
+"OK" = "OK";
+"Yes" = "はい";
+"No" = "いいえ";
+"Error" = "エラー";
+"Warning" = "警告";
+"Info" = "情報";
+"Settings" = "設定";
+"Back" = "戻る";
+"Forward" = "進む";
+"Retry" = "再試行";
+"Delete" = "削除";
+"Edit" = "編集";
+"Save" = "保存";
+"Load" = "読み込み";
+"Close" = "閉じる";
+"Open" = "開く";
+
+/* Object capture specific feedback messages */
+"Move Closer (Object Capture)" = "もっと近づいてください";
+"Move Farther Away (Object Capture)" = "もっと離れてください";
+"Move slower (Object Capture)" = "もっとゆっくり動いてください";
+"More Light Required (Object Capture)" = "より多くの光が必要です";
+"More Light Recommended (Object Capture)" = "より多くの光をお勧めします";
+"Aim at your object (Object Capture)" = "オブジェクトに向けてください";
+"Aim at your subject (Object Capture, State)." = "被写体に向けてください";
+"Look at your subject (Object Capture, State)." = "被写体を見てください";
+"Look at your subject." = "被写体を見てください";
+"Look at your object" = "オブジェクトを見てください";
+
+/* Guidance messages */
+"Move close and center the dot on your object, then tap Continue. (Object Capture, State)" = "近づいて、ドットをオブジェクトの中央に合わせ、撮影開始をタップしてください";
+"Move around to ensure that the whole object is inside the box. Drag handles to manually resize. (Object Capture, State)" = "オブジェクト全体がボックス内に収まるように移動してください。ハンドルをドラッグして手動でサイズを調整できます";
+"Move slowly around your object. (Object Capture, Orbit, Tutorial)" = "オブジェクトの周りをゆっくりと移動してください";
+
+/* Review and feedback messages */
+"Keep moving around your object. (Review, Object Capture)" = "オブジェクトの周りを動き続けてください";
+"First segment complete. (Review, Object Capture)" = "最初のセグメントが完了しました";
+"Second segment complete. (Review, Object Capture)" = "2番目のセグメントが完了しました";
+"All segments complete. (Review, Object Capture)" = "すべてのセグメントが完了しました";
+"Flip object on its side and capture again. (Review, Object Capture)" = "オブジェクトを横に向けて再度撮影してください";
+"Flip object on the opposite side and capture again. (Review, Object Capture)" = "オブジェクトを反対側に向けて再度撮影してください";
+
+/* Processing and time messages */
+"Estimated time remaining: %@ (Object Capture)" = "残り時間: %@";
+"Estimated processing time: 5-10 min (Review, Object Capture)" = "推定処理時間: 5-10分";
+"Keep app running while processing. (Object Capture)" = "処理中はアプリを起動したままにしてください";
+"Calculating… (Estimated time, Object Capture)" = "計算中…";
+
+/* Photo limit messages */
+"Photo limit (Object Capture)" = "写真制限";
+"To create a model on device you need a minimum of %d images and a maximum of %d images. (Object Capture)" = "デバイス上でモデルを作成するには、最低%1$d枚、最大%2$d枚の画像が必要です";
+"You can capture more than %d images and process them on your Mac. (Object Capture)" = "%d枚以上撮影してMacで処理することができます";
+"You need at least %d images of your object to create a model. (Review, Object Capture)" = "モデルを作成するには、オブジェクトの画像が少なくとも%d枚必要です";
+
+/* Error and failure messages */
+"Can't find your object. It should be larger than 3in (8cm) in each dimension." = "オブジェクトが見つかりません。各辺が3インチ（8cm）以上である必要があります";
+"Flipping this object is not recommended. (Review, Object Capture)" = "このオブジェクトを裏返すことはお勧めしません";
+"Insufficient Images" = "画像が不足しています";
+"At least 15 images are required to generate a 3D model. You currently have %d images." = "3Dモデルを生成するには最低15枚の画像が必要です。現在%d枚の画像があります。";
+"Need %d more images" = "あと%d枚の画像が必要です";
+"Currently %d of %d images captured" = "現在 %1$d / %2$d 枚撮影済み";
+
+/* Draft save completion messages */
+"Draft Saved Successfully" = "下書き保存完了";
+"Your capture session has been saved as a draft. You can generate a 3D model from it later." = "撮影セッションが下書きとして保存されました。後から3Dモデルを生成できます。";
+
+/* Empty gallery messages */
+"No Captures Yet" = "まだキャプチャがありません";
+"Start capturing objects to see them here" = "オブジェクトを撮影するとここに表示されます";
+
+/* Status components */
+"Processing" = "処理中";
+"3D Model" = "3Dモデル";
+"Photos" = "写真";
+"Complete" = "完了";
+"Processing 3D Model" = "3Dモデル処理中";
+"3D Model Ready" = "3Dモデル準備完了";
+"Photos Captured" = "写真撮影完了";
+"Creating your 3D model" = "3Dモデルを作成中";
+"Ready to view and share" = "表示・共有可能";
+"Ready to create 3D model" = "3Dモデル作成可能";
+"Processing..." = "処理中...";
+
+/* Help and tutorial strings */
+"Capture Help (Help, Object Capture)" = "撮影ヘルプ";
+"How to Capture (Help, Object Capture)" = "撮影方法";
+"Capture Types (Help, Object Capture)" = "撮影タイプ";
+"Environment (Help, Object Capture)" = "環境";
+"Supported Objects (Help, Object Capture)" = "対応オブジェクト";
+"Object Mode (Help, Object Capture)" = "オブジェクトモード";
+"Area Mode (Help, Object Capture)" = "エリアモード";
+
+/* Help page detailed descriptions */
+"Choose which suits your object.\n (Help, Object Capture)" = "オブジェクトに適したモードを選択してください。\n";
+"Choose which capture type suits your object. (Help, Object Capture)" = "オブジェクトに適した撮影タイプを選択してください。";
+"Move slowly around your object and capture all sides.\n (Help, Object Capture)" = "オブジェクトの周りをゆっくりと動いて、すべての面を撮影してください。\n";
+"Move slowly around your object to capture all sides. (Help, Object Capture)" = "オブジェクトの周りをゆっくりと動いて、すべての面を撮影してください。";
+"Make sure you have even, bright lighting and a stable environment for scanning.\n (Help, Object Capture)" = "均等で明るい照明と、スキャンに適した安定した環境を確保してください。\n";
+"Make sure you have even, bright lighting and a stable environment for scanning. (Help, Object Capture)" = "均等で明るい照明と、スキャンに適した安定した環境を確保してください。";
+"Opaque, matte objects with varied surface textures scan best.\n (Help, Object Capture)" = "不透明でマットな表面に、様々なテクスチャがあるオブジェクトが最も良くスキャンできます。\n";
+"Opaque, matte objects with varied surface textures scan best. (Help, Object Capture)" = "不透明でマットな表面に、様々なテクスチャがあるオブジェクトが最も良くスキャンできます。";
+
+/* Capture tips and techniques */
+"Capture Tips (Help, Object Capture)" = "撮影のコツ";
+"Fill the camera feed with your object (Help, Object Capture)" = "カメラ画面をオブジェクトで満たしてください";
+"Fill the camera feed with your object. (Help, Object Capture)" = "カメラ画面をオブジェクトで満たしてください。";
+"Capture more of your object for higher quality (Help, Object Capture)" = "高品質にするため、オブジェクトをより多く撮影してください";
+"Capture more of your object for higher quality. (Help, Object Capture)" = "高品質にするため、オブジェクトをより多く撮影してください。";
+"Pause for automatic, clear photographs (Help, Object Capture)" = "自動で鮮明な写真を撮るため、一時停止してください";
+"Pause for automatic, clear photographs. (Help, Object Capture)" = "自動で鮮明な写真を撮るため、一時停止してください。";
+
+/* Quality reduction factors */
+"May Reduce Quality (Help, Object Capture)" = "品質が低下する可能性があります";
+"Moving too quickly (Help, Object Capture)" = "動きが速すぎる";
+"Not capturing all surfaces (Help, Object Capture)" = "すべての面を撮影していない";
+
+/* Object mode specifics */
+"Capture entire objects and separate them from their surroundings. (Help, Object Capture)" = "オブジェクト全体を撮影し、周囲から分離します。";
+"Works best in controlled indoor environments (Help, Object Capture)" = "管理された室内環境で最も効果的です";
+
+/* Area mode specifics */
+"Capture objects and their surroundings. (Help, Object Capture)" = "オブジェクトとその周囲を撮影します。";
+"Works in indoor or outdoor environments (Help, Object Capture)" = "室内および屋外環境で動作します";
+
+/* Onboarding and Review Screen Messages */
+"Keep moving around your object. (Review, Object Capture)" = "オブジェクトの周りを動き続けてください。";
+"You need at least %d images of your object to create a model. (Review, Object Capture)" = "モデルを作成するには、オブジェクトの画像が少なくとも%d枚必要です。";
+"Keep going to complete the first segment. (Review, Object Capture)" = "最初のセグメントを完成させるため続けてください。";
+"For best quality, three segments are recommended. Tap Skip if you can't make it all the way around but your final model may have missing areas. (Review, Object Capture, 1st Segment)" = "最高品質のためには3つのセグメントを推奨します。一周できない場合はスキップをタップしてください。ただし、最終モデルに欠けた部分が生じる可能性があります。";
+"For best quality, three segments are recommended. (Review, Object Capture, 1st Segment)" = "最高品質のためには3つのセグメントを推奨します。";
+"Make sure that the areas you captured previously can still be seen. (Review, Object Capture)" = "以前に撮影した部分が引き続き見えることを確認してください。物体の形が変わってしまう場合は、裏返すのを避けてください。";
+"Flipping this object isn't recommended." = "このオブジェクトを裏返すことはお勧めしません。";
+"Your object may have single color surfaces or be too reflective to add more segments. Tap Continue to capture more detail without flipping, or Flip Object Anyway. (Review, Object Capture)" = "オブジェクトが単色の表面を持っているか、反射が強すぎてセグメントを追加できない可能性があります。裏返さずに詳細を撮影するには続行を、それでも裏返す場合は「とにかく裏返す」をタップしてください。";
+"Move down to be level with the base of your object and capture again. (Review, Object Capture)" = "オブジェクトの底面と同じ高さまで下がって、再度撮影してください。";
+"Keep going to complete the second segment. (Review, Object Capture)" = "2番目のセグメントを完成させるため続けてください。";
+"For best quality, three segments are recommended. Tap Skip if you can't make it all the way around the object; your final model may have missing areas. (Review, Object Capture, 2nd Segment)" = "最高品質のためには3つのセグメントを推奨します。オブジェクトを一周できない場合はスキップをタップしてください。最終モデルに欠けた部分が生じる可能性があります。";
+"For best quality, three segments are recommended. (Review, Object Capture, 2nd segment)" = "最高品質のためには3つのセグメントを推奨します。";
+"Flip the object on the opposite side and capture again" = "オブジェクトを反対側に裏返して再度撮影してください";
+"Move above your object and make sure that the areas you captured previously can still be seen. (Review, Object Capture)" = "オブジェクトの上に移動し、以前に撮影した部分が引き続き見えることを確認してください。";
+"Keep going to complete the final segment. (Review, Object Capture)" = "最後のセグメントを完成させるため続けてください。";
+"For best quality, three segments are recommended. If you're done, tap Finish to complete your object. (Review, Object Capture)" = "最高品質のためには3つのセグメントを推奨します。完了したら、完了をタップしてオブジェクトを仕上げてください。";
+"Tap Finish to process your object. (Review, Object Capture)" = "完了をタップしてオブジェクトを処理してください。";
+"Capture Preview (Review, Object Capture)" = "撮影プレビュー";
+"Points show what will be included in the final model. Continue capturing to include a larger area or process now. (Review, Object Capture)" = "ポイントは最終モデルに含まれる範囲を示しています。より広い範囲を含めるには撮影を続けるか、今すぐ処理してください。";
+"Estimated processing time: 5-10 min (Review, Object Capture)" = "推定処理時間: 5-10分";
+"%d of %d images will be processed on iPhone. Transfer images to Mac to create the full model. (Review, Object Capture)" = "%1$d/%2$d枚の画像がiPhoneで処理されます。完全なモデルを作成するには画像をMacに転送してください。";
+
+/* Environment characteristics */
+"Ideal Environment Characteristics (Help, Object Capture)" = "理想的な環境の特徴";
+"Diffuse, consistent lighting (Help, Object Capture)" = "拡散した一定の照明";
+"Space around intended object (Help, Object Capture)" = "対象オブジェクトの周りに十分な空間";
+"Space around the intended object (Help, Object Capture)" = "対象オブジェクトの周りに十分な空間";
+"Inconsistent shadows (Help, Object Capture)" = "一貫しない影";
+"Sunny, directional lighting (Help, Object Capture)" = "太陽光などの方向性のある照明";
+
+/* Object characteristics */
+"Ideal Object Characteristics (Help, Object Capture)" = "理想的なオブジェクトの特徴";
+"Between 3in and 6ft in size (Help, Object Capture)" = "サイズが3インチから6フィートの間";
+"Between 3 in and 6 ft in size (Help, Object Capture)" = "サイズが3インチから6フィートの間";
+"Non-reflective, matte surface (Help, Object Capture)" = "反射しないマットな表面";
+"Nonreflective, matte surface (Help, Object Capture)" = "反射しないマットな表面";
+"Varied Surface Texture, rigid objects (Help, Object Capture)" = "様々な表面テクスチャを持つ硬いオブジェクト";
+"Shiny materials (Help, Object Capture)" = "光沢のある素材";
+"Thin structures (Help, Object Capture)" = "薄い構造";
+"Transparent, translucent objects (Help, Object Capture)" = "透明・半透明のオブジェクト";
