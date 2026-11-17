@@ -19,6 +19,7 @@ struct HybridCapturePrimaryView: View {
     @State private var realtimePoints: [SIMD3<Float>] = []
     @State private var realtimeColors: [SIMD4<Float>] = []
     @State private var arSession = ARSession()
+    @State private var arCoordinator: ARSessionCoordinator?
     @State private var isRealtimeEnabled = true
     @State private var realtimeQuality = "準備中"
     @State private var showPointCloud = false
@@ -112,6 +113,13 @@ struct HybridCapturePrimaryView: View {
         logger.log("🚀 Setting up realtime point cloud capture alongside Object Capture")
         
         let configuration = ARWorldTrackingConfiguration()
+
+        guard ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) else {
+            isRealtimeEnabled = false
+            logger.error("Scene depth is not supported on this device")
+            return
+        }
+        configuration.frameSemantics.insert(.sceneDepth)
         
         // LiDARサポートチェック
         if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
@@ -126,18 +134,18 @@ struct HybridCapturePrimaryView: View {
         configuration.planeDetection = [.horizontal, .vertical]
         
         // ARセッションデリゲート設定
-        arSession.delegate = ARSessionCoordinator(onPointCloudUpdate: updateRealtimePointCloud)
+        let coordinator = ARSessionCoordinator(onPointCloudUpdate: updateRealtimePointCloud)
+        arCoordinator = coordinator
+        arSession.delegate = coordinator
         arSession.run(configuration)
         
         logger.log("🎯 Hybrid AR session started")
     }
     
     private func updateRealtimePointCloud(points: [SIMD3<Float>], colors: [SIMD4<Float>]) {
-        // 高品質フィルタリング
-        let filteredData = filterRealtimePoints(points: points, colors: colors)
-        
         // メインスレッドで更新
         DispatchQueue.main.async {
+            let filteredData = self.filterRealtimePoints(points: points, colors: colors)
             self.realtimePoints.append(contentsOf: filteredData.points)
             self.realtimeColors.append(contentsOf: filteredData.colors)
             
@@ -160,10 +168,6 @@ struct HybridCapturePrimaryView: View {
         var filteredColors: [SIMD4<Float>] = []
         
         for (index, point) in points.enumerated() {
-            // 距離フィルタ（0.1m～3.0m）
-            let distance = simd_length(point)
-            guard distance > 0.1 && distance < 3.0 else { continue }
-            
             // 簡易重複チェック（パフォーマンス考慮）
             let isDuplicate = realtimePoints.suffix(1000).contains { existingPoint in
                 simd_distance(point, existingPoint) < 0.005
@@ -199,6 +203,8 @@ struct HybridCapturePrimaryView: View {
     
     private func stopRealtimeCapture() {
         arSession.pause()
+        arSession.delegate = nil
+        arCoordinator = nil
         logger.log("⏸️ Realtime capture stopped")
     }
     
@@ -292,41 +298,12 @@ class ARSessionCoordinator: NSObject, ARSessionDelegate {
         // LiDAR深度データから点群を抽出
         guard let sceneDepth = frame.sceneDepth else { return }
         
-        let points = extractPointsFromARFrame(frame, sceneDepth: sceneDepth)
-        let colors = generateColorsFromFrame(frame, pointCount: points.count)
+        let points = DepthPointCloudSampler.sample(frame: frame, depth: sceneDepth)
+        let colors = Array(repeating: SIMD4<Float>(0.8, 0.8, 0.8, 1.0), count: points.count)
         
         onPointCloudUpdate(points, colors)
     }
     
-    private func extractPointsFromARFrame(_ frame: ARFrame, sceneDepth: ARDepthData) -> [SIMD3<Float>] {
-        var points: [SIMD3<Float>] = []
-        
-        // 実際のLiDAR深度データから3D点群を生成
-        // 簡易実装: サンプル点群を生成
-        let cameraTransform = frame.camera.transform
-        
-        for y in stride(from: 0, to: 50, by: 5) {
-            for x in stride(from: 0, to: 50, by: 5) {
-                let localPoint = SIMD3<Float>(
-                    Float(x - 25) * 0.01,
-                    Float(y - 25) * 0.01,
-                    Float.random(in: 0.2...1.5)
-                )
-                
-                // カメラ座標系から世界座標系に変換
-                let worldPoint = cameraTransform * SIMD4<Float>(localPoint.x, localPoint.y, localPoint.z, 1.0)
-                points.append(SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z))
-            }
-        }
-        
-        return points
-    }
-    
-    private func generateColorsFromFrame(_ frame: ARFrame, pointCount: Int) -> [SIMD4<Float>] {
-        // カメラ画像から実際の色を抽出する処理
-        // 簡易実装: 基本色を返す
-        return Array(repeating: SIMD4<Float>(0.8, 0.9, 1.0, 1.0), count: pointCount)
-    }
 }
 
 // リアルタイム点群表示オーバーレイ

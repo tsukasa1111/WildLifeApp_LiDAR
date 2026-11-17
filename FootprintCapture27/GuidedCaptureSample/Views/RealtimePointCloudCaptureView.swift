@@ -7,6 +7,7 @@ LiDARとRGBを同時活用した革新的高品質点群生成
 import RealityKit
 import SwiftUI
 import ARKit
+import CoreVideo
 import os
 
 private let logger = Logger(subsystem: GuidedCaptureSampleApp.subsystem, category: "RealtimePointCloudCapture")
@@ -17,6 +18,7 @@ struct RealtimePointCloudCaptureView: View {
     @State private var arView = ARView(frame: .zero)
     @State private var capturedPoints: [SIMD3<Float>] = []
     @State private var capturedColors: [SIMD4<Float>] = []
+    @State private var seenVoxels: Set<VoxelKey> = []
     @State private var isCapturing = false
     @State private var captureCount = 0
     @State private var qualityLevel = "準備中"
@@ -118,7 +120,14 @@ struct RealtimePointCloudCaptureView: View {
         let configuration = ARWorldTrackingConfiguration()
         
         // LiDARスキャンを最大活用
-        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
+        guard ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) else {
+            qualityLevel = "LiDAR非対応"
+            logger.error("Scene depth is not supported on this device")
+            return
+        }
+        configuration.frameSemantics.insert(.sceneDepth)
+
+        if ARWorldTrackingConfiguration.supportsSceneReconstruction(.meshWithClassification) {
             configuration.sceneReconstruction = [.meshWithClassification]
             logger.log("✨ LiDAR mesh reconstruction with classification enabled")
         } else if ARWorldTrackingConfiguration.supportsSceneReconstruction(.mesh) {
@@ -141,7 +150,7 @@ struct RealtimePointCloudCaptureView: View {
     }
     
     private func updatePointCloud(points: [SIMD3<Float>], colors: [SIMD4<Float>]) {
-        guard isCapturing else { return }
+        guard isCapturing, capturedPoints.count < 500_000 else { return }
         
         // 🎯 高品質点群フィルタリング
         let filteredPoints = filterHighQualityPoints(points: points, colors: colors)
@@ -161,15 +170,9 @@ struct RealtimePointCloudCaptureView: View {
         var filteredColors: [SIMD4<Float>] = []
         
         for (index, point) in points.enumerated() {
-            // 距離ベースフィルタリング（0.1m～3.0m）
-            let distance = simd_length(point)
-            guard distance > 0.1 && distance < 3.0 else { continue }
-            
-            // 重複チェック（1mm精度）
-            let isDuplicate = capturedPoints.contains { existingPoint in
-                simd_distance(point, existingPoint) < 0.001
-            }
-            guard !isDuplicate else { continue }
+            guard capturedPoints.count + filteredPoints.count < 500_000 else { break }
+            let voxel = VoxelKey(point: point)
+            guard seenVoxels.insert(voxel).inserted else { continue }
             
             filteredPoints.append(point)
             if index < colors.count {
@@ -185,12 +188,8 @@ struct RealtimePointCloudCaptureView: View {
     private func updateQualityLevel() {
         let pointCount = capturedPoints.count
         
-        if pointCount >= 2000000 {
-            qualityLevel = "🏆 研究グレード (2M+)"
-        } else if pointCount >= 1000000 {
-            qualityLevel = "🚀 プロフェッショナル (1M+)"
-        } else if pointCount >= 500000 {
-            qualityLevel = "✨ 高品質 (500K+)"
+        if pointCount >= 500000 {
+            qualityLevel = "点群上限 (500K)"
         } else if pointCount >= 100000 {
             qualityLevel = "👍 標準 (100K+)"
         } else if pointCount >= 10000 {
@@ -230,7 +229,7 @@ struct RealtimePointCloudCaptureView: View {
             ply
             format ascii 1.0
             comment iOS 18 Realtime Point Cloud
-            comment LiDAR + RGB Fusion Technology
+            comment LiDAR scene depth with neutral display color
             element vertex \(capturedPoints.count)
             property float x
             property float y
@@ -301,35 +300,71 @@ struct ARViewContainer: UIViewRepresentable {
             // LiDAR点群データ取得
             guard let sceneDepth = frame.sceneDepth else { return }
             
-            let points = extractPointsFromDepth(sceneDepth)
-            let colors = generateColorsFromCamera(frame, pointCount: points.count)
+            let points = DepthPointCloudSampler.sample(frame: frame, depth: sceneDepth)
+            let colors = Array(repeating: SIMD4<Float>(0.8, 0.8, 0.8, 1.0), count: points.count)
             
-            onPointCloudUpdate(points, colors)
-        }
-        
-        private func extractPointsFromDepth(_ sceneDepth: ARDepthData) -> [SIMD3<Float>] {
-            // iOS 18の新しい深度データからより高密度な点群を抽出
-            var points: [SIMD3<Float>] = []
-            
-            // 実装: CVPixelBufferから3D点群を生成
-            // 簡易版として、基本的な点群を生成
-            for y in stride(from: 0, to: 100, by: 2) {
-                for x in stride(from: 0, to: 100, by: 2) {
-                    let point = SIMD3<Float>(
-                        Float(x) * 0.01,
-                        Float(y) * 0.01,
-                        Float.random(in: 0.1...2.0)
-                    )
-                    points.append(point)
-                }
+            DispatchQueue.main.async {
+                self.onPointCloudUpdate(points, colors)
             }
-            
-            return points
         }
-        
-        private func generateColorsFromCamera(_ frame: ARFrame, pointCount: Int) -> [SIMD4<Float>] {
-            // カメラ画像から色情報を抽出
-            return Array(repeating: SIMD4<Float>(0.8, 0.8, 0.8, 1.0), count: pointCount)
+    }
+}
+
+enum DepthPointCloudSampler {
+    static func sample(frame: ARFrame, depth: ARDepthData) -> [SIMD3<Float>] {
+        let depthMap = depth.depthMap
+        guard CVPixelBufferGetPixelFormatType(depthMap) == kCVPixelFormatType_DepthFloat32,
+              CVPixelBufferLockBaseAddress(depthMap, .readOnly) == kCVReturnSuccess else { return [] }
+        defer { CVPixelBufferUnlockBaseAddress(depthMap, .readOnly) }
+
+        let width = CVPixelBufferGetWidth(depthMap)
+        let height = CVPixelBufferGetHeight(depthMap)
+        let cameraWidth = CVPixelBufferGetWidth(frame.capturedImage)
+        let cameraHeight = CVPixelBufferGetHeight(frame.capturedImage)
+        guard width > 0, height > 0, cameraWidth > 0, cameraHeight > 0,
+              let base = CVPixelBufferGetBaseAddress(depthMap)?.assumingMemoryBound(to: Float32.self) else { return [] }
+
+        let intrinsics = frame.camera.intrinsics
+        let scaleX = Float(width) / Float(cameraWidth)
+        let scaleY = Float(height) / Float(cameraHeight)
+        let fx = intrinsics.columns.0.x * scaleX
+        let fy = intrinsics.columns.1.y * scaleY
+        let cx = intrinsics.columns.2.x * scaleX
+        let cy = intrinsics.columns.2.y * scaleY
+        guard fx > 0, fy > 0 else { return [] }
+
+        let rowStride = CVPixelBufferGetBytesPerRow(depthMap) / MemoryLayout<Float32>.stride
+        let step = max(1, min(width, height) / 80)
+        let transform = frame.camera.transform
+        var points: [SIMD3<Float>] = []
+        points.reserveCapacity((width / step + 1) * (height / step + 1))
+
+        for y in stride(from: 0, to: height, by: step) {
+            for x in stride(from: 0, to: width, by: step) {
+                let distance = base[y * rowStride + x]
+                guard distance.isFinite, distance > 0.05, distance < 5.0 else { continue }
+                let cameraPoint = SIMD4<Float>(
+                    (Float(x) - cx) * distance / fx,
+                    -(Float(y) - cy) * distance / fy,
+                    -distance,
+                    1.0
+                )
+                let worldPoint = transform * cameraPoint
+                points.append(SIMD3<Float>(worldPoint.x, worldPoint.y, worldPoint.z))
+            }
         }
+        return points
+    }
+}
+
+private struct VoxelKey: Hashable {
+    let x: Int32
+    let y: Int32
+    let z: Int32
+
+    init(point: SIMD3<Float>) {
+        x = Int32((point.x / 0.005).rounded(.down))
+        y = Int32((point.y / 0.005).rounded(.down))
+        z = Int32((point.z / 0.005).rounded(.down))
     }
 }
