@@ -103,14 +103,24 @@ private struct ReadOnlyGalleryContainer: View {
 
     var body: some View {
         NavigationView {
-            GC_GalleryView(showCaptureFolders: $show, showsCloseButton: false)
-                .navigationTitle("キャプチャ一覧")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
+            VStack(spacing: 0) {
+                if !appModel.cameraUnavailableMessage.isEmpty {
+                    Text(appModel.cameraUnavailableMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+                GC_GalleryView(showCaptureFolders: $show, showsCloseButton: false)
+            }
+            .navigationTitle("キャプチャ一覧")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if ObjectCaptureSession.isSupported {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("撮影を開始") { appModel.createNewCaptureSession() }
                     }
                 }
+            }
         }
     }
 }

@@ -294,7 +294,6 @@ extension AppDataModel {
         guard state == .ready, objectCaptureSession == nil else { return }
         guard ObjectCaptureSession.isSupported else {
             cameraUnavailableMessage = "このデバイスはObject Captureをサポートしていません。"
-            showCameraUnavailableAlert = true
             return
         }
         let status = AVCaptureDevice.authorizationStatus(for: .video)
