@@ -178,7 +178,7 @@ enum PointCloudStorage {
             buffer.reserveCapacity(1_048_576)
             for point in pointCloud.points {
                 let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
+                let color = point.color
                 let line = String(
                     format: "%.6f %.6f %.6f %d %d %d %d\n",
                     Double(position.x), Double(position.y), Double(position.z),

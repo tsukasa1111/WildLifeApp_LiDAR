@@ -368,27 +368,9 @@ extension AppDataModel {
 
         var configuration = ObjectCaptureSession.Configuration()
         
-        // 🚀 MAXIMUM POINT DENSITY キャプチャ設定
-        configuration.isOverCaptureEnabled = true // より多くの画像を取得
+        configuration.isOverCaptureEnabled = true
         configuration.checkpointDirectory = captureFolderManager.checkpointFolder
-        
-        // 🔥 点群密度最大化のための設定
-        logger.log("🎯 ULTRA POINT DENSITY: Configuring for maximum point generation")
-        logger.log("📊 OverCapture=ENABLED for dense point cloud creation")
-        
-        // 🎯 品質向上のための追加設定
-        if #available(iOS 18.0, *) {
-            // iOS 18の最新機能を活用
-            logger.log("🔥 iOS 18+ MAXIMUM QUALITY CAPTURE enabled")
-            logger.log("⚡ Leveraging latest photogrammetry algorithms")
-        } else if #available(iOS 17.0, *) {
-            // iOS 17以降の高品質機能を活用
-            logger.log("🎉 iOS 17+ enhanced capture mode enabled")
-        }
-        
-        logger.log("🚀 ULTRA QUALITY CAPTURE: Optimizing for maximum point density")
-        logger.log("📊 Settings: OverCapture=TRUE, Quality=MAXIMUM")
-        logger.log("🎯 Target: Generate 5x-50x denser point clouds")
+        logger.log("Starting Object Capture with overcapture enabled")
         // Starts the initial segment and sets the output locations.
         session.start(imagesDirectory: captureFolderManager.imagesFolder,
                       configuration: configuration)
@@ -437,25 +419,14 @@ extension AppDataModel {
     // Moves from prepareToReconstruct to .reconstructing.
     // Should be called from the ReconstructionPrimaryView async task once it is on the screen.
     private func startReconstruction() throws {
-        logger.debug("🚀 startReconstruction() - MAXIMUM POINT DENSITY MODE")
+        logger.debug("Starting photogrammetry reconstruction")
 
         var configuration = PhotogrammetrySession.Configuration()
         
-        // 🚀 MAXIMUM POINT DENSITY設定 - 点群数最優先
-        configuration.isObjectMaskingEnabled = false     // 全領域をキャプチャ
-        configuration.sampleOrdering = .unordered        // 全画像活用で密度向上
-        configuration.featureSensitivity = .high         // 最高感度で細部検出
-        
-        // 🔥 追加品質向上設定
-        if #available(iOS 17.0, *) {
-            logger.log("🎉 iOS 17+ ULTRA QUALITY mode activated")
-        }
-        
-        logger.log("🚀 RESEARCH GRADE QUALITY configuration activated")
-        
-        logger.log("🎯 ULTRA HIGH DENSITY MODE ACTIVATED")
-        logger.log("📊 Config: Mode=\\(captureMode), Masking=disabled, Sensitivity=high")
-        logger.log("🎯 Target: Maximum possible point cloud density for \\(captureMode) mode")
+        configuration.isObjectMaskingEnabled = false
+        configuration.sampleOrdering = .unordered
+        configuration.featureSensitivity = .high
+        logger.log("Photogrammetry configuration: masking disabled, unordered samples, high feature sensitivity")
         
         guard let captureFolderManager else {
             throw AppError.noCaptureFolderManager
@@ -572,9 +543,9 @@ extension AppDataModel {
 
     private func removeCheckpointFolder() {
         // Remove checkpoint folder to free up space now that the model is generated.
-        if let captureFolderManager {
+        if let checkpointFolder = captureFolderManager?.checkpointFolder {
             DispatchQueue.global(qos: .background).async {
-                try? FileManager.default.removeItem(at: captureFolderManager.checkpointFolder)
+                try? FileManager.default.removeItem(at: checkpointFolder)
             }
         }
     }
@@ -1027,7 +998,7 @@ extension AppDataModel {
                 }
             case .requestComplete(let request, let result):
                 switch request {
-                case .modelFile(_):
+                case .modelFile:
                     logger.log("✅ Model file generation completed")
                 case .pointCloud:
                     logger.log("✅ Point cloud generation completed")

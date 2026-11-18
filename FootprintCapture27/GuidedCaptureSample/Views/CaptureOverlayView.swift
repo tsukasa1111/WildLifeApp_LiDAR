@@ -73,6 +73,10 @@ struct CaptureOverlayView: View {
                 .onAppear {
                     startFrequentCapture()
                 }
+                .onDisappear {
+                    captureTimer?.invalidate()
+                    captureTimer = nil
+                }
                 .onChange(of: session.state) { _, newState in
                     if newState == .capturing {
                         startFrequentCapture()
@@ -108,15 +112,16 @@ struct CaptureOverlayView: View {
         // session.isAutoCaptureEnabled = true
         
         // さらに手動キャプチャも併用して最大頻度にする
+        let captureSession = session
         captureTimer = Timer.scheduledTimer(withTimeInterval: 0.3, repeats: true) { timer in
-            // セッションがキャプチャ中でない場合はタイマーを停止
-            guard session.state == .capturing else {
-                timer.invalidate()
-                return
+            Task { @MainActor in
+                guard captureSession.state == .capturing else {
+                    timer.invalidate()
+                    return
+                }
+                guard !captureSession.isPaused else { return }
+                captureSession.requestImageCapture()
             }
-            
-            // 手動で写真キャプチャを要求（自動キャプチャと併用）
-            session.requestImageCapture()
         }
     }
     

@@ -352,7 +352,7 @@ struct EnhancedPointCloudViewerView: View {
                 
                 // 📖 ファイル読み込み
                 logger.log("📖 Reading file...")
-                let data = try String(contentsOf: url)
+                let data = try String(contentsOf: url, encoding: .utf8)
                 let readTime = CFAbsoluteTimeGetCurrent()
                 logger.log("📖 File read completed in \(String(format: "%.2f", readTime - startTime))s")
                 
@@ -389,15 +389,15 @@ struct EnhancedPointCloudViewerView: View {
     
     private func parsePointCloudDataOptimized(_ data: String) async -> (pointCount: Int, points: [SIMD3<Float>], colors: [SIMD3<Float>]) {
         return await Task.detached(priority: .userInitiated) {
-            return self.parsePointCloudDataInternal(data, maxPoints: 10000) // 表示用に10K点に制限
+            return Self.parsePointCloudDataInternal(data, maxPoints: 10000) // 表示用に10K点に制限
         }.value
     }
     
     private func parsePointCloudData(_ data: String) -> (pointCount: Int, points: [SIMD3<Float>], colors: [SIMD3<Float>]) {
-        return parsePointCloudDataInternal(data, maxPoints: nil)
+        return Self.parsePointCloudDataInternal(data, maxPoints: nil)
     }
     
-    private func parsePointCloudDataInternal(_ data: String, maxPoints: Int?) -> (pointCount: Int, points: [SIMD3<Float>], colors: [SIMD3<Float>]) {
+    nonisolated private static func parsePointCloudDataInternal(_ data: String, maxPoints: Int?) -> (pointCount: Int, points: [SIMD3<Float>], colors: [SIMD3<Float>]) {
         let lines = data.components(separatedBy: .newlines)
         var points: [SIMD3<Float>] = []
         var colors: [SIMD3<Float>] = []

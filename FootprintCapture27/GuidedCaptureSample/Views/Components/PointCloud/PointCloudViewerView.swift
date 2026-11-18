@@ -128,7 +128,7 @@ struct PointCloudViewerView: View {
 
     private func loadPointCloudData() async {
         do {
-            let data = try String(contentsOf: pointCloudURL)
+            let data = try String(contentsOf: pointCloudURL, encoding: .utf8)
             let (points, colors) = parsePointCloudData(data)
             await MainActor.run {
                 self.pointCloudData = data

@@ -64,24 +64,18 @@ struct PlayerView: UIViewRepresentable {
             }
 
             return request.finish(with: outputImage, context: nil)
-        }, completionHandler: { composition, error in
-            playerItem.asset.loadTracks(withMediaType: .video) { tracks, error in
-                Task {
-                    if let tracks {
-                        var videoSize: CGSize?
-
-                        for track in tracks {
-                            let naturalSize = try await track.load(.naturalSize)
-                            let preferredTransform = try await track.load(.preferredTransform)
-
-                            videoSize = !tracks.isEmpty ? naturalSize.applying(preferredTransform) : nil
-                        }
-
-                        if let composition,
-                           let videoSize {
-                            composition.renderSize = videoSize
-                            playerItem.videoComposition = composition
-                        }
+        }, completionHandler: { composition, _ in
+            playerItem.asset.loadTracks(withMediaType: .video) { tracks, _ in
+                Task { @MainActor in
+                    guard let composition, let track = tracks?.first else { return }
+                    do {
+                        let naturalSize = try await track.load(.naturalSize)
+                        let transform = try await track.load(.preferredTransform)
+                        composition.renderSize = CGRect(origin: .zero, size: naturalSize)
+                            .applying(transform).standardized.size
+                        playerItem.videoComposition = composition
+                    } catch {
+                        // Keep the unmodified tutorial video if its track cannot be loaded.
                     }
                 }
             }

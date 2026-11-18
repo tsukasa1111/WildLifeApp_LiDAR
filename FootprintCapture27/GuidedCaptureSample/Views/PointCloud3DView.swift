@@ -72,9 +72,6 @@ struct PointCloud3DView: UIViewRepresentable {
         print("DEBUG: Adding \(points.count) points to scene")
         print("DEBUG: Colors count: \(colors.count)")
         
-        // Create geometry for point cloud
-        let pointGeometry = SCNGeometry()
-        
         // 🚀 パフォーマンス最適化 - デバイス性能に応じた点数制限
         let deviceMaxPoints = getMaxPointsForDevice()
         let maxPoints = min(points.count, deviceMaxPoints)
@@ -229,7 +226,6 @@ struct PointCloud3DView: UIViewRepresentable {
         let renderer = UIGraphicsImageRenderer(size: size)
         
         return renderer.image { context in
-            let rect = CGRect(origin: .zero, size: size)
             let center = CGPoint(x: size.width/2, y: size.height/2)
             let radius = min(size.width, size.height) / 2.2
             
@@ -285,7 +281,6 @@ struct PointCloud3DView: UIViewRepresentable {
     
     // 🎯 デバイス性能に応じた最大点数を決定
     private func getMaxPointsForDevice() -> Int {
-        let device = UIDevice.current
         let totalMemory = ProcessInfo.processInfo.physicalMemory
         
         // メモリ容量に基づく制限

@@ -139,12 +139,6 @@ struct RealtimePointCloudCaptureView: View {
         configuration.worldAlignment = .gravity
         configuration.planeDetection = [.horizontal, .vertical]
         
-        // iOS 18の新機能: 高密度点群取得
-        if #available(iOS 18.0, *) {
-            // 最新のARKit機能を活用
-            logger.log("🎉 iOS 18 enhanced AR features activated")
-        }
-        
         arView.session.run(configuration)
         logger.log("🌟 AR Session started with maximum quality settings")
     }

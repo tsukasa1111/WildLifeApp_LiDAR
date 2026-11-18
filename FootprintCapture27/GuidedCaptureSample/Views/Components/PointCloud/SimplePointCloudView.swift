@@ -53,7 +53,7 @@ struct SimplePointCloudView: View {
     private func loadSimplePointCloudData() async {
         let url = captureFolderURL.appendingPathComponent(pointCloudType.rawValue)
         do {
-            let data = try String(contentsOf: url)
+            let data = try String(contentsOf: url, encoding: .utf8)
             let (points, colors) = parsePointCloudData(data)
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
             let size = attributes[.size] as? Int64 ?? 0

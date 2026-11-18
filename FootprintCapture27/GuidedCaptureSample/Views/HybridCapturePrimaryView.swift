@@ -231,8 +231,10 @@ struct HybridCapturePrimaryView: View {
         }
         
         let hybridPointCloudURL = captureFolderManager.captureFolder.appendingPathComponent("hybrid_pointcloud.ply")
+        let points = realtimePoints
+        let colors = realtimeColors
         
-        logger.log("💾 Saving hybrid point cloud: \(realtimePoints.count) realtime points")
+        logger.log("💾 Saving hybrid point cloud: \(points.count) realtime points")
         
         // 🚀 バックグラウンドでファイル生成（UIをブロックしない）
         await Task.detached(priority: .userInitiated) {
@@ -244,7 +246,7 @@ struct HybridCapturePrimaryView: View {
                 format ascii 1.0
                 comment Hybrid Point Cloud - Object Capture + Realtime LiDAR
                 comment Traditional Object Capture + Realtime AR points
-                element vertex \(realtimePoints.count)
+                element vertex \(points.count)
                 property float x
                 property float y
                 property float z
@@ -258,8 +260,8 @@ struct HybridCapturePrimaryView: View {
                 
                 // 📝 バッチ処理でパフォーマンス向上
                 var batchContent = ""
-                for (index, point) in realtimePoints.enumerated() {
-                    let color = index < realtimeColors.count ? realtimeColors[index] : SIMD4<Float>(1, 1, 1, 1)
+                for (index, point) in points.enumerated() {
+                    let color = index < colors.count ? colors[index] : SIMD4<Float>(1, 1, 1, 1)
                     
                     batchContent += String(format: "%.6f %.6f %.6f %d %d %d %d\n",
                                        point.x, point.y, point.z,

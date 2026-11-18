@@ -1477,12 +1477,12 @@ struct SessionDetailView: View {
                                     self.reconstructionProgress = fractionComplete
                                 }
                             }
-                        case .requestProgressInfo(let request, let progressInfo):
+                        case .requestProgressInfo(_, _):
                             // プログレス詳細情報は無視（シンプルに）
                             break
                         case .requestComplete(let request, let result):
                             switch request {
-                                case .modelFile(_):
+                                case .modelFile:
                                     logger.log("RequestComplete: .modelFile")
                                     await MainActor.run {
                                         self.modelURL = modelFile
