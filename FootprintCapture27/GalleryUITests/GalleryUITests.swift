@@ -16,8 +16,17 @@ final class GalleryUITests: XCTestCase {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let allowLocation = springboard.buttons["Allow While Using App"]
         if allowLocation.waitForExistence(timeout: 3) { allowLocation.tap() }
-        let card = app.buttons["gallery.record"].firstMatch
+        let card = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@ AND identifier ENDSWITH %@", "gallery.record.", "-ci-fixture")).firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10))
+        app.buttons["撮影画面の見本"].tap()
+        XCTAssertTrue(app.navigationBars["撮影画面の見本"].waitForExistence(timeout: 5))
+        app.buttons["撮影中"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["preview.progress"].exists)
+        attachScreen("preview")
+        let sampleShot = app.buttons["写真を1枚撮影"]
+        for _ in 0..<3 { sampleShot.tap() }
+        XCTAssertTrue(app.staticTexts["50枚の撮影が完了しました"].exists)
+        app.buttons["閉じる"].tap()
         let options = app.buttons["gallery.options"]
         XCTAssertTrue(options.exists)
         options.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
@@ -31,7 +40,42 @@ final class GalleryUITests: XCTestCase {
         XCTAssertTrue(card.waitForExistence(timeout: 5))
         card.tap()
         XCTAssertTrue(app.navigationBars["キャプチャ詳細"].waitForExistence(timeout: 5))
+        attachScreen("detail")
+        app.buttons["編集"].tap()
+        XCTAssertTrue(app.navigationBars["記録の編集"].waitForExistence(timeout: 5))
+        let toggle = app.switches["足跡あり"]
+        XCTAssertTrue(toggle.exists)
+        toggle.tap()
+        XCTAssertEqual(toggle.value as? String, "0")
+        app.buttons["キャンセル"].tap()
+        app.buttons["編集"].tap()
+        XCTAssertEqual(toggle.value as? String, "1")
+        attachScreen("editor")
+        toggle.tap()
+        app.buttons["保存"].tap()
+        XCTAssertTrue(app.navigationBars["キャプチャ詳細"].waitForExistence(timeout: 5))
         app.buttons["閉じる"].firstMatch.tap()
-        XCTAssertTrue(card.waitForExistence(timeout: 5))
+        app.terminate()
+        app.launch()
+        XCTAssertTrue(card.waitForExistence(timeout: 10))
+        XCTAssertTrue(card.label.contains("足跡なし"))
+    }
+    func testRecordingFormSwitchesBetweenTrackAndSurveySite() {
+        let app = XCUIApplication()
+        app.launchArguments = ["-testMetadataForm"]
+        app.launch()
+        XCTAssertTrue(app.navigationBars["痕跡の記録"].waitForExistence(timeout: 8))
+        app.buttons["足跡なし"].tap()
+        XCTAssertTrue(app.navigationBars["調査地点の記録"].exists)
+        attachScreen("record-form")
+        app.buttons["足跡あり"].tap()
+        XCTAssertTrue(app.navigationBars["痕跡の記録"].exists)
+    }
+
+    private func attachScreen(_ name: String) {
+        let image = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+        image.name = name
+        image.lifetime = .keepAlways
+        add(image)
     }
 }

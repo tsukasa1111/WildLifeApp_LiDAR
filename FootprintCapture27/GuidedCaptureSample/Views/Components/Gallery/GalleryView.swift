@@ -290,7 +290,7 @@ private struct ThumbnailView: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("gallery.record")
+        .accessibilityIdentifier("gallery.record.\(captureFolderURL.lastPathComponent)")
         .sheet(isPresented: $showSessionDetail, onDismiss: { refreshID += 1 }) {
             SessionDetailView(
                 captureFolderURL: captureFolderURL,

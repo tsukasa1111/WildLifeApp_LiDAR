@@ -60,7 +60,9 @@ struct BottomOverlayButtons: View, OverlayButtons {
                     default:
                         HStack {
                             Spacer()
-                            ManualShotButton(session: session)
+                            ManualShotButton(isEnabled: session.canRequestImageCapture) {
+                                session.requestImageCapture()
+                            }
                         }
                 }
             }
@@ -83,46 +85,7 @@ private struct CaptureButton: View {
                 performAction()
             },
             label: {
-                Text(buttonLabel)
-                    .font(.body)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 25)
-                    .padding(.vertical, 20)
-                    .background(
-                        Capsule()
-                            .fill(.thinMaterial.opacity(0.7))
-                            .overlay(
-                                Capsule()
-                                    .stroke(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.blue.opacity(0.9),
-                                                Color.blue.opacity(0.6),
-                                                Color.blue.opacity(0.3)
-                                            ]),
-                                            startPoint: .topLeading,
-                                            endPoint: .bottomTrailing
-                                        ),
-                                        lineWidth: 2.5
-                                    )
-                            )
-                            .overlay(
-                                Capsule()
-                                    .fill(
-                                        LinearGradient(
-                                            gradient: Gradient(colors: [
-                                                Color.blue.opacity(0.4),
-                                                Color.blue.opacity(0.2)
-                                            ]),
-                                            startPoint: .top,
-                                            endPoint: .bottom
-                                        )
-                                    )
-                            )
-                    )
-                    .environment(\.colorScheme, .dark)
-                    .shadow(color: .blue.opacity(0.6), radius: 15, x: 0, y: 8)
+                CaptureStartLabel(title: buttonLabel)
             })
     }
 
@@ -170,6 +133,53 @@ private struct CaptureButton: View {
             bundle: Bundle.main,
             value: "続ける",
             comment: "Title for the Continue button on the object capture screen.")
+    }
+}
+
+struct CaptureStartLabel: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(.body)
+            .fontWeight(.bold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 25)
+            .padding(.vertical, 20)
+            .background(
+                Capsule()
+                    .fill(.thinMaterial.opacity(0.7))
+                    .overlay(
+                        Capsule()
+                            .stroke(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.blue.opacity(0.9),
+                                        Color.blue.opacity(0.6),
+                                        Color.blue.opacity(0.3)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 2.5
+                            )
+                    )
+                    .overlay(
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        Color.blue.opacity(0.4),
+                                        Color.blue.opacity(0.2)
+                                    ]),
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    )
+            )
+            .environment(\.colorScheme, .dark)
+            .shadow(color: .blue.opacity(0.6), radius: 15, x: 0, y: 8)
     }
 }
 
@@ -237,23 +247,19 @@ private struct ResetBoundingBoxButton: View {
     }
 }
 
-private struct ManualShotButton: View {
-    var session: ObjectCaptureSession
+struct ManualShotButton: View {
+    let isEnabled: Bool
+    let takeShot: () -> Void
 
     var body: some View {
-        Button(
-            action: {
-                session.requestImageCapture()
-            },
-            label: {
-                Image(systemName: "camera.circle.fill")
-                    .font(.largeTitle)
-                    .foregroundColor(session.canRequestImageCapture ? .white : .gray)
-                    .frame(minWidth: 44, minHeight: 44)
-            }
-        )
+        Button(action: takeShot) {
+            Image(systemName: "camera.circle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(isEnabled ? Color.white : Color.gray)
+                .frame(minWidth: 44, minHeight: 44)
+        }
         .accessibilityLabel("写真を1枚撮影")
-        .disabled(!session.canRequestImageCapture)
+        .disabled(!isEnabled)
     }
 }
 

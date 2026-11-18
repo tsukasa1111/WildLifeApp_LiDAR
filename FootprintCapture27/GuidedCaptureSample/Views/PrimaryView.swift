@@ -106,6 +106,8 @@ private func isCameraUnavailable() -> Bool {
 private struct ReadOnlyGalleryContainer: View {
     @EnvironmentObject var appModel: AppDataModel
 
+    @State private var showPreview = false
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
@@ -121,7 +123,13 @@ private struct ReadOnlyGalleryContainer: View {
             }
             .navigationTitle("キャプチャ一覧")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showPreview) { CaptureScreenPreview() }
             .toolbar {
+                if !ObjectCaptureSession.isSupported {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("撮影画面の見本") { showPreview = true }
+                    }
+                }
                 if ObjectCaptureSession.isSupported {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("撮影を開始") { appModel.createNewCaptureSession() }

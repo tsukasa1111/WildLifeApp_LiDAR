@@ -11,14 +11,13 @@ struct MetadataCard: View {
                     Image(systemName: "pawprint.fill").font(.system(size: 20, weight: .semibold)).foregroundColor(.green)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("痕跡の詳細情報").font(.headline).fontWeight(.semibold).foregroundColor(Color(UIColor.label))
-                    Text("記録された動物痕跡の情報").font(.subheadline).foregroundColor(Color(UIColor.systemGray))
+                    Text(metadata.hasFootprint ? (metadata.animalType.isEmpty ? "動物未記録" : metadata.animalType) : "調査地点").font(.headline).fontWeight(.semibold).foregroundColor(Color(UIColor.label))
+                    Text(formatTimestamp(metadata.timestamp)).font(.subheadline).foregroundColor(Color(UIColor.systemGray))
                 }
                 Spacer()
             }
 
             VStack(spacing: 12) {
-                MetadataRow(icon: "hare.fill", title: "動物の種類", value: metadata.animalType, color: .blue)
                 MetadataRow(icon: "pawprint.fill", title: "痕跡の種類", value: metadata.traceType, color: .green)
 
                 if let weather = metadata.weather {
@@ -30,7 +29,6 @@ struct MetadataCard: View {
                     MetadataRow(icon: "hand.point.down.fill", title: "地面の柔らかさ", value: softnessText, color: .brown)
                 }
 
-                MetadataRow(icon: "clock.fill", title: "記録日時", value: formatTimestamp(metadata.timestamp), color: .purple)
 
                 if let notes = metadata.notes, !notes.isEmpty {
                     MetadataRow(icon: "note.text", title: "備考", value: notes, color: .gray)

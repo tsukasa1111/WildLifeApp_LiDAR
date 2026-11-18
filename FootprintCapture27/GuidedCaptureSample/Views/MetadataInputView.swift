@@ -62,25 +62,31 @@ struct MetadataInputView: View {
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
-                    headerSection
                     footprintPresenceSection
                     
                     if viewModel.hasFootprint {
                         withFootprintSection
-                    } else {
-                        withoutFootprintSection
                     }
                     
                     commonSection
-                    footerSection
+                    validationSection
                 }
-                .padding(.horizontal, 16)
+                .padding(16)
             }
-            .navigationTitle(viewModel.hasFootprint ? "🐾 痕跡情報記録" : "📍 調査地点記録")
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle(viewModel.hasFootprint ? "痕跡の記録" : "調査地点の記録")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(viewModel.isSaving ? "保存中…" : "保存") {
+                        Task { await saveWithViewModel() }
+                    }
+                    .disabled(!viewModel.isValidInput || viewModel.isSaving)
+                }
+            }
         }
         .sheet(isPresented: $viewModel.showingFootprintAnnotation) {
             if let image = viewModel.thumbnailImage {
@@ -167,135 +173,18 @@ struct MetadataInputView: View {
     
     // MARK: - View Components
     
-    private var headerSection: some View {
-        VStack(spacing: 16) {
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: viewModel.hasFootprint ? [Color.blue.opacity(0.2), Color.green.opacity(0.1)] : [Color.orange.opacity(0.2), Color.purple.opacity(0.1)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 80, height: 80)
-                
-                Image(systemName: viewModel.hasFootprint ? "pawprint.fill" : "mappin.circle.fill")
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: viewModel.hasFootprint ? [.blue, .green] : [.orange, .purple],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-            
-            VStack(spacing: 8) {
-                Text(viewModel.hasFootprint ? "痕跡の詳細情報" : "調査地点の記録")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.primary)
-                
-                Text(viewModel.hasFootprint ? "発見した動物痕跡の情報を記録してください" : "動物痕跡が見つからなかった地点の環境情報を記録してください")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 16)
-            }
-        }
-        .padding(.top, 20)
-    }
-    
     private var footprintPresenceSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Image(systemName: "questionmark.circle.fill")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.blue)
-                    .frame(width: 24, height: 24)
-                
-                Text("調査結果")
-                    .font(.headline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Text("必須")
-                    .font(.caption2)
-                    .fontWeight(.bold)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue)
-                    .cornerRadius(4)
+        VStack(alignment: .leading, spacing: 10) {
+            Label("調査結果", systemImage: "pawprint.fill")
+                .font(.headline)
+            Picker("調査結果", selection: $viewModel.hasFootprint) {
+                Text("足跡あり").tag(true)
+                Text("足跡なし").tag(false)
             }
-            
-            VStack(spacing: 12) {
-                footprintPresenceButton(hasFootprint: true)
-                footprintPresenceButton(hasFootprint: false)
-            }
+            .pickerStyle(.segmented)
         }
-        .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16)
-                .fill(Color(UIColor.secondarySystemBackground))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(Color.blue.opacity(0.3), lineWidth: 1)
-                )
-        )
     }
-    
-    private func footprintPresenceButton(hasFootprint footprintPresent: Bool) -> some View {
-        Button(action: {
-            withAnimation(.easeInOut(duration: 0.2)) {
-                viewModel.hasFootprint = footprintPresent
-            }
-        }) {
-            HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(footprintPresent == viewModel.hasFootprint ? Color.blue.opacity(0.1) : Color(UIColor.systemGray6))
-                        .frame(width: 50, height: 50)
-                    
-                    Text(footprintPresent ? "🐾" : "🔍")
-                        .font(.system(size: 24))
-                }
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(footprintPresent ? "足跡あり" : "足跡なし")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                        .foregroundColor(footprintPresent == viewModel.hasFootprint ? .primary : .secondary)
-                    
-                    Text(footprintPresent ? "動物の痕跡を発見" : "痕跡は見つからず")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                
-                Spacer()
-                
-                if footprintPresent == viewModel.hasFootprint {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 20))
-                        .foregroundColor(.blue)
-                }
-            }
-            .padding(12)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(footprintPresent == viewModel.hasFootprint ? Color.blue.opacity(0.05) : Color(UIColor.systemBackground))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(footprintPresent == viewModel.hasFootprint ? Color.blue.opacity(0.3) : Color(UIColor.systemGray4), lineWidth: 1)
-                    )
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
+
     // 足跡ありの場合の詳細入力セクション
     private var withFootprintSection: some View {
         VStack(spacing: 20) {
@@ -304,41 +193,6 @@ struct MetadataInputView: View {
                 otherAnimalCard
             }
             footprintAnnotationCard
-        }
-    }
-    
-    // 足跡なしの場合の簡易入力セクション
-    private var withoutFootprintSection: some View {
-        VStack(spacing: 16) {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack {
-                    Image(systemName: "info.circle.fill")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.orange)
-                        .frame(width: 24, height: 24)
-                    
-                    Text("簡易記録")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                    
-                    Spacer()
-                }
-                
-                Text("足跡が見つからなかった地点の環境情報を記録します。動物の種類や詳細なアノテーションは不要です。")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.leading)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 16)
-                    .fill(Color.orange.opacity(0.05))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16)
-                            .stroke(Color.orange.opacity(0.3), lineWidth: 1)
-                    )
-            )
         }
     }
     
@@ -383,7 +237,6 @@ struct MetadataInputView: View {
                 }
             }
         }
-        .disabled(viewModel.isLoadingThumbnail)
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16)
@@ -434,6 +287,7 @@ struct MetadataInputView: View {
             )
         }
         .buttonStyle(PlainButtonStyle())
+        .accessibilityAddTraits(viewModel.animalType == type.0 ? .isSelected : [])
     }
     
     private var otherAnimalCard: some View {
@@ -452,6 +306,9 @@ struct MetadataInputView: View {
                             .stroke(viewModel.otherAnimal.count > 20 ? Color.red : Color.clear, lineWidth: 1)
                     )
                 
+                if viewModel.otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text("動物名を入力してください").font(.caption).foregroundStyle(.secondary)
+                }
                 Text("\(viewModel.otherAnimal.count)/20")
                     .font(.caption)
                     .foregroundColor(viewModel.otherAnimal.count > 20 ? .red : .secondary)
@@ -532,7 +389,7 @@ struct MetadataInputView: View {
             
             // 画像選択ボタン
             HStack {
-                Text("使用する画像:")
+                Text("マーキングする画像")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
                 
@@ -544,7 +401,7 @@ struct MetadataInputView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "photo.stack")
                             .font(.system(size: 14))
-                        Text("画像\(viewModel.selectedImageIndex + 1)を選択")
+                        Text(viewModel.availableImages.isEmpty ? "画像なし" : "画像 \(viewModel.selectedImageIndex + 1) / \(viewModel.availableImages.count)")
                             .font(.subheadline)
                         Image(systemName: "chevron.up.chevron.down")
                             .font(.system(size: 12))
@@ -621,6 +478,17 @@ struct MetadataInputView: View {
                     )
             )
         }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.weather == option.0 {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+                    .padding(4)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
+        }
+        .accessibilityAddTraits(viewModel.weather == option.0 ? .isSelected : [])
         .buttonStyle(PlainButtonStyle())
     }
     
@@ -677,6 +545,17 @@ struct MetadataInputView: View {
                     )
             )
         }
+        .overlay(alignment: .topTrailing) {
+            if viewModel.softness == option.0 {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.tint)
+                    .padding(4)
+                    .accessibilityHidden(true)
+                    .allowsHitTesting(false)
+            }
+        }
+        .accessibilityAddTraits(viewModel.softness == option.0 ? .isSelected : [])
         .buttonStyle(PlainButtonStyle())
     }
     
@@ -765,6 +644,7 @@ struct MetadataInputView: View {
             
             VStack(alignment: .trailing, spacing: 4) {
                 TextEditor(text: $viewModel.notes)
+                    .accessibilityLabel("メモ")
                     .frame(minHeight: 80)
                     .padding(8)
                     .background(Color(UIColor.systemBackground))
@@ -786,7 +666,7 @@ struct MetadataInputView: View {
         )
     }
     
-    private var footerSection: some View {
+    private var validationSection: some View {
         VStack(spacing: 16) {
             if !viewModel.validationErrors.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
@@ -829,33 +709,7 @@ struct MetadataInputView: View {
                 )
             }
             
-            Button(action: { Task { await saveWithViewModel() } }) {
-                HStack {
-                    if viewModel.isSaving {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                            .scaleEffect(0.8)
-                    } else {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 16, weight: .medium))
-                    }
-                    
-                    Text(viewModel.isSaving ? "保存中..." : "保存")
-                        .font(.headline)
-                        .fontWeight(.medium)
-                }
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16)
-                        .fill(viewModel.isValidInput ? Color.blue : Color.gray)
-                )
-            }
-            .disabled(!viewModel.isValidInput || viewModel.isSaving)
-            .buttonStyle(PlainButtonStyle())
-            
-            Spacer(minLength: 20)
+
         }
     }
     

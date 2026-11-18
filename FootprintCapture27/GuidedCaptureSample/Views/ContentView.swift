@@ -18,6 +18,12 @@ struct ContentView: View {
         PrimaryView()
             .onAppear(perform: {
                 UIApplication.shared.isIdleTimerDisabled = true
+                #if DEBUG && targetEnvironment(simulator)
+                if ProcessInfo.processInfo.arguments.contains("-testMetadataForm") {
+                    appModel.state = .metadataInput
+                    return
+                }
+                #endif
                 appModel.createNewCaptureSession()
             })
             .onDisappear(perform: {

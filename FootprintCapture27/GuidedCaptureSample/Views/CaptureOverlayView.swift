@@ -35,7 +35,7 @@ struct CaptureOverlayView: View {
                 VStack(spacing: 20) {
                         // 撮影進捗プログレスバー
                         if session.state == .capturing {
-                            CaptureProgressBar(session: session)
+                            CaptureProgressBar(currentCount: session.numberOfShotsTaken)
                             CaptureStatusIndicator(session: session)
                         }
                         
@@ -316,12 +316,8 @@ extension OverlayButtons {
 }
 
 // MARK: - 撮影進捗プログレスバー
-private struct CaptureProgressBar: View {
-    var session: ObjectCaptureSession
-    
-    private var currentCount: Int {
-        session.numberOfShotsTaken
-    }
+struct CaptureProgressBar: View {
+    let currentCount: Int
     
     private var targetCount: Int {
         50  // 50枚が目標

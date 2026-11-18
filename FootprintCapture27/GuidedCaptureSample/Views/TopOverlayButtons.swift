@@ -1114,7 +1114,7 @@ struct SessionDetailView: View {
     @State private var isReconstructing = false
     @State private var reconstructionProgress: Double = 0.0
     @State private var reconstructionError: String?
-    @State private var metadataSaveError: String?
+    @State private var editDraft: TraceMetadata?
     @State private var showModel = false
     @State private var modelURL: URL?
     @State private var thumbnailImage: CGImage?
@@ -1122,7 +1122,6 @@ struct SessionDetailView: View {
     @State private var showEditMetadata = false
     @State private var isEditingTitle = false
     @State private var editableTitle = ""
-    @State private var isEditingMetadata = false
     @State private var hasAnnotatedImage = false
     @State private var showFootprintAnnotation = false
     @State private var selectedImageIndex: Int = 2  // 3枚目をデフォルト（0ベース）
@@ -1155,7 +1154,7 @@ struct SessionDetailView: View {
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
                     heroSection
@@ -1165,17 +1164,18 @@ struct SessionDetailView: View {
             .navigationTitle("キャプチャ詳細")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("編集") { beginEditing() }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("閉じる") { dismiss() }
                 }
             }
-            .alert("詳細情報を保存できませんでした", isPresented: Binding(
-                get: { metadataSaveError != nil },
-                set: { if !$0 { metadataSaveError = nil } }
-            )) {
-                Button("OK", role: .cancel) { metadataSaveError = nil }
-            } message: {
-                Text(metadataSaveError ?? "")
+            .sheet(item: $editDraft) { draft in
+                MetadataEditor(metadata: draft, onSave: { updated in
+                    try saveMetadata(updated)
+                    editDraft = nil
+                }, onCancel: { editDraft = nil })
             }
         }
     }
@@ -1203,16 +1203,27 @@ struct SessionDetailView: View {
     
     private var contentSections: some View {
         VStack(spacing: 24) {
-            // Status Card
-            StatusCard(
-                hasModel: hasModel,
-                isReconstructing: isReconstructing,
-                reconstructionProgress: reconstructionProgress,
-                reconstructionError: reconstructionError
-            )
-            .padding(.horizontal)
-            
-            // 1. Action Buttons (最上部)
+            if let metadata = traceMetadata {
+                MetadataCard(metadata: metadata)
+                    .padding(.horizontal)
+                if metadata.hasFootprint && !availableImages.isEmpty {
+                    Button("足跡画像を確認") { showFootprintAnnotation = true }
+                        .buttonStyle(.bordered)
+                }
+            } else {
+                Button("詳細情報を追加") { beginEditing() }
+                    .buttonStyle(.bordered)
+            }
+            if isReconstructing || reconstructionError != nil {
+                StatusCard(
+                    hasModel: hasModel,
+                    isReconstructing: isReconstructing,
+                    reconstructionProgress: reconstructionProgress,
+                    reconstructionError: reconstructionError
+                )
+                .padding(.horizontal)
+            }
+
             ActionButtonsSection(
                 hasModel: hasModel,
                 isReconstructing: isReconstructing,
@@ -1223,82 +1234,6 @@ struct SessionDetailView: View {
                     startReconstruction()
                 }
             )
-            .padding(.horizontal)
-            
-            // 2. Metadata Section (詳細情報 - 中央)
-            VStack(spacing: 16) {
-                if let metadata = traceMetadata {
-                    if isEditingMetadata {
-                        InlineEditableMetadataCard(
-                            metadata: $traceMetadata,
-                            onSave: { updatedMetadata in
-                                if saveMetadata(updatedMetadata) {
-                                    isEditingMetadata = false
-                                }
-                            },
-                            onCancel: {
-                                isEditingMetadata = false
-                            }
-                        )
-                    } else {
-                        VStack(spacing: 12) {
-                            MetadataCard(metadata: metadata)
-                            
-                            // 足跡画像確認ボタン（足跡ありの場合のみ表示）
-                            if metadata.hasFootprint {
-                                Button("足跡画像を確認") {
-                                    if availableImages.isEmpty {
-                                        loadAvailableImages()
-                                    }
-                                    showFootprintAnnotation = true
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .disabled(availableImages.isEmpty)
-                            }
-                            
-                            Button("詳細情報を編集") {
-                                isEditingMetadata = true
-                            }
-                            .buttonStyle(.bordered)
-                        }
-                    }
-                } else {
-                    VStack(spacing: 16) {
-                        Image(systemName: "info.circle")
-                            .font(.system(size: 40))
-                            .foregroundColor(.secondary)
-                        
-                        Text("詳細情報が見つかりません")
-                            .font(.headline)
-                            .foregroundColor(.secondary)
-                        
-                        Text("このキャプチャにはメタデータが保存されていません")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .multilineTextAlignment(.center)
-                        
-                        Button("詳細情報を追加") {
-                            // Create new metadata with basic info
-                            let (timestamp, location) = getBasicInfo()
-                            traceMetadata = TraceMetadata(
-                                hasFootprint: true,
-                                animalType: "",
-                                traceType: "足跡",
-                                weather: nil,
-                                substrate: nil,
-                                notes: nil,
-                                location: location,
-                                timestamp: timestamp ?? Date()
-                            )
-                            isEditingMetadata = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                    }
-                    .padding(20)
-                    .background(Color(UIColor.secondarySystemBackground))
-                    .cornerRadius(16)
-                }
-            }
             .padding(.horizontal)
             
             // 3. Location Information (位置情報 - 最下部)
@@ -1547,26 +1482,25 @@ struct SessionDetailView: View {
         }
     }
     
-    @discardableResult
-    private func saveMetadata(_ metadata: TraceMetadata) -> Bool {
-        let metadataFile = captureFolderURL.appendingPathComponent("metadata.json")
-        
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = .prettyPrinted
-            let data = try encoder.encode(metadata)
-            try data.write(to: metadataFile, options: .atomic)
-            traceMetadata = metadata
-            logger.log("Metadata saved")
-            return true
-        } catch {
-            logger.error("Failed to save metadata: \(error)")
-            metadataSaveError = error.localizedDescription
-            return false
+    private func beginEditing() {
+        if let traceMetadata {
+            editDraft = traceMetadata
+        } else {
+            let (timestamp, location) = getBasicInfo()
+            editDraft = TraceMetadata(hasFootprint: true, animalType: "", traceType: "足跡",
+                                      location: location, timestamp: timestamp ?? Date())
         }
     }
-    
+
+    private func saveMetadata(_ metadata: TraceMetadata) throws {
+        let url = captureFolderURL.appendingPathComponent("metadata.json")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+        try encoder.encode(metadata).write(to: url, options: .atomic)
+        traceMetadata = metadata
+    }
+
     private func getFirstImage(from url: URL) -> URL? {
         let imageFolderURL = url.appendingPathComponent(CaptureFolderManager.imagesFolderName)
         let imagesURL: URL? = try? FileManager.default.contentsOfDirectory(

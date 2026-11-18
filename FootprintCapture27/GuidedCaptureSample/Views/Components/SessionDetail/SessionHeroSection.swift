@@ -7,60 +7,23 @@ struct SessionHeroSection: View {
 
     var body: some View {
         ZStack {
-            backgroundGradient
-
-            VStack(spacing: 20) {
-                thumbnailSection
-            }
-            .padding(.vertical, 30)
-        }
-        .frame(height: 300)
-    }
-
-    private var backgroundGradient: some View {
-        LinearGradient(
-            gradient: Gradient(colors: [
-                Color(UIColor.systemBackground),
-                Color(UIColor.systemGray6).opacity(0.3)
-            ]),
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
-    private var thumbnailSection: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 20)
-                .fill(Color(UIColor.systemGray5).opacity(0.8))
-                .frame(width: 200, height: 200)
-                .shadow(color: Color.black.opacity(0.15), radius: 12, x: 0, y: 6)
-
+            Color(uiColor: .secondarySystemBackground)
             if let thumbnailImage {
-                Image(decorative: thumbnailImage, scale: 1.0)
+                Image(decorative: thumbnailImage, scale: 1)
                     .resizable()
-                    .scaledToFill()
-                    .frame(width: 200, height: 200)
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .scaledToFit()
             } else {
-                VStack {
-                    Image(systemName: "camera.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(Color(UIColor.systemGray2))
-                    Text("読み込み中...")
-                        .font(.caption)
-                        .foregroundColor(Color(UIColor.systemGray2))
-                }
+                Image(systemName: "photo")
+                    .font(.largeTitle)
+                    .foregroundStyle(.secondary)
             }
-
-            VStack {
-                HStack {
-                    Spacer()
-                    StatusBadge(hasModel: hasModel, isReconstructing: isReconstructing)
-                }
-                Spacer()
-            }
-            .padding(12)
         }
+        .frame(height: 190)
+        .overlay(alignment: .topTrailing) {
+            StatusBadge(hasModel: hasModel, isReconstructing: isReconstructing)
+                .padding(8)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14))
+        .padding()
     }
 }
-

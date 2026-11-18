@@ -64,4 +64,5 @@ jobs:
           path: |
             ${{ runner.temp }}/ui-*.png
             ${{ runner.temp }}/ui-test/*.png
+            ${{ runner.temp }}/ui-test/manifest.json
           retention-days: 7
