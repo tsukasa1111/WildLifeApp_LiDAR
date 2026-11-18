@@ -4,10 +4,23 @@ final class GalleryUITests: XCTestCase {
     // CI installs a single deer capture in the simulator's Documents folder.
     func testFilterRecoveryAndDetail() {
         let app = XCUIApplication()
+        continueAfterFailure = false
+        app.launchArguments += ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         app.launch()
+        addTeardownBlock {
+            let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
+            attachment.name = "gallery-test-screen"
+            attachment.lifetime = .keepAlways
+            self.add(attachment)
+        }
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let allowLocation = springboard.buttons["Allow While Using App"]
+        if allowLocation.waitForExistence(timeout: 3) { allowLocation.tap() }
         let card = app.buttons["gallery.record"].firstMatch
         XCTAssertTrue(card.waitForExistence(timeout: 10))
-        app.buttons["gallery.options"].tap()
+        let options = app.buttons["gallery.options"]
+        XCTAssertTrue(options.exists)
+        options.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         app.buttons["動物の種類"].firstMatch.tap()
         app.buttons["イノシシ"].firstMatch.tap()
 
