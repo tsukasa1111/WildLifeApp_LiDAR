@@ -246,7 +246,11 @@ struct GC_GalleryView: View {
                 at: topLevelFolder,
                 includingPropertiesForKeys: nil,
                 options: [])
-            return contents.filter { $0.hasDirectoryPath }.sorted { $0.path > $1.path }
+            return contents.filter { url in
+                var isDirectory: ObjCBool = false
+                return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+                    && isDirectory.boolValue
+            }.sorted { $0.path > $1.path }
         } catch {
             return nil
         }

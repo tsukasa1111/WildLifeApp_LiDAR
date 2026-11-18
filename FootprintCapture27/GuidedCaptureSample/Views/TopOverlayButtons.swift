@@ -1574,7 +1574,7 @@ struct SessionDetailView: View {
             includingPropertiesForKeys: nil,
             options: []
         )
-        .filter { !$0.hasDirectoryPath }
+        .filter { ["jpg", "jpeg", "png", "heic"].contains($0.pathExtension.lowercased()) }
         .sorted(by: { $0.path < $1.path })
         .first
         return imagesURL

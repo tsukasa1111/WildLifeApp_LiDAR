@@ -421,9 +421,6 @@ extension AppDataModel {
                 logger.error("Failed to force portrait orientation during capture: \(error)")
             }
             
-            // デバイス方向を縦画面に強制
-            UIDevice.current.setValue(UIInterfaceOrientation.portrait.rawValue, forKey: "orientation")
-            
             // 追加の縦画面固定処理
             if let window = windowScene.windows.first {
                 window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()

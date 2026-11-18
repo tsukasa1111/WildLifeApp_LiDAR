@@ -47,15 +47,19 @@ class CaptureFolderManager {
         }
         captureFolder = newFolder
 
-        // Create the subdirectories
+        // If the device runs out of space partway through setup, remove the
+        // incomplete capture so the gallery does not collect empty sessions.
         imagesFolder = newFolder.appendingPathComponent(Self.imagesFolderName)
-        try CaptureFolderManager.createDirectoryRecursively(imagesFolder)
-
         checkpointFolder = newFolder.appendingPathComponent("Checkpoint/")
-        try CaptureFolderManager.createDirectoryRecursively(checkpointFolder)
-
         modelsFolder = newFolder.appendingPathComponent("Models/")
-        try CaptureFolderManager.createDirectoryRecursively(modelsFolder)
+        do {
+            try CaptureFolderManager.createDirectoryRecursively(imagesFolder)
+            try CaptureFolderManager.createDirectoryRecursively(checkpointFolder)
+            try CaptureFolderManager.createDirectoryRecursively(modelsFolder)
+        } catch {
+            try? FileManager.default.removeItem(at: newFolder)
+            throw error
+        }
     }
     
     // 既存フォルダ用のイニシャライザ（一括処理用）
