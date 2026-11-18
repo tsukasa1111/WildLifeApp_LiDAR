@@ -74,7 +74,10 @@ struct GC_GalleryView: View {
             if let filtered = filteredAndSortedURLs, !filtered.isEmpty {
                 galleryGridView(for: filtered)
             } else {
-                EmptyGalleryView()
+                EmptyGalleryView(
+                    hasCaptures: !(captureFoldersWithImages?.isEmpty ?? true),
+                    canCapture: appModel.cameraUnavailableMessage.isEmpty
+                )
             }
 
             if showsCloseButton {
@@ -274,6 +277,9 @@ struct GC_GalleryView: View {
 }
 
 private struct EmptyGalleryView: View {
+    let hasCaptures: Bool
+    let canCapture: Bool
+
     var body: some View {
         VStack(spacing: 32) {
             Spacer()
@@ -294,15 +300,21 @@ private struct EmptyGalleryView: View {
                 }
             }
             VStack(spacing: 12) {
-                Text("まだキャプチャがありません").font(.title2).fontWeight(.semibold)
+                Text(hasCaptures ? "条件に合うキャプチャはありません" : "まだキャプチャがありません")
+                    .font(.title2).fontWeight(.semibold)
                 VStack(spacing: 8) {
-                    Text("動物の痕跡をスキャンして")
-                    Text("記録を開始しましょう")
+                    if hasCaptures {
+                        Text("表示設定を変更して確認してください")
+                    } else if canCapture {
+                        Text("動物の痕跡を撮影して記録を開始しましょう")
+                    } else {
+                        Text("対応する実機で撮影すると、ここに記録が表示されます")
+                    }
                 }
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
             }
-            VStack(spacing: 12) {
+            if canCapture && !hasCaptures {
                 HStack(spacing: 12) {
                     Image(systemName: "lightbulb.fill").font(.system(size: 16, weight: .medium)).foregroundColor(.yellow)
                     Text("明るい環境で撮影すると質が上がります").font(.subheadline)
@@ -310,8 +322,8 @@ private struct EmptyGalleryView: View {
                 }
                 .padding(12)
                 .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
+                .padding(.horizontal)
             }
-            .padding(.horizontal)
             Spacer()
         }
         .padding(.bottom, 24)

@@ -25,26 +25,26 @@ enum PointCloudType: String, CaseIterable {
     var displayName: String {
         switch self {
         case .standard:
-            return "📊 標準品質（高速）"
+            return "旧形式: 標準"
         case .enhanced:
-            return "🚀 最高品質（重い）"
+            return "写真から再構成した点群"
         case .research:
-            return "🔬 研究グレード（超重い）"
+            return "旧形式: 詳細"
         case .traditional:
-            return "📸 従来版（参考）"
+            return "旧形式: 従来"
         }
     }
     
     var description: String {
         switch self {
         case .standard:
-            return "基本的な位置・色情報のみ"
+            return "過去版で保存した位置・色情報"
         case .enhanced:
-            return "法線ベクトル・信頼度付き"
+            return "PhotogrammetrySessionが出力した点群"
         case .research:
-            return "最高設定・Checkpoint・適応サンプリング"
+            return "過去版で保存した追加属性付きデータ"
         case .traditional:
-            return "元の実装（比較用）"
+            return "過去版で保存した点群"
         }
     }
     
@@ -1465,6 +1465,7 @@ struct SessionDetailView: View {
                 try photogrammetrySession.process(requests: [pointCloudRequest, modelRequest])
                 
                 // Handle outputs - 撮影後と同じ処理
+                var hasReconstructionError = false
                 let outputs = UntilProcessingCompleteFilter(input: photogrammetrySession.outputs)
                 for await output in outputs {
                     switch output {
@@ -1490,19 +1491,12 @@ struct SessionDetailView: View {
                                     }
                                 case .pointCloud:
                                     logger.log("RequestComplete: .pointCloud")
-                                    // 🔬 全種類の点群データを保存（完全比較用）
                                     if case .pointCloud(let pointCloud) = result {
-                                        logger.log("🚀 Saving ALL FOUR types of point clouds with \(pointCloud.points.count) points")
-                                        
-                                        // 並列実行で高速化
-                                        await withTaskGroup(of: Void.self) { group in
-                                            group.addTask { await saveTraditionalPointCloud(pointCloud: pointCloud) }
-                                            group.addTask { await saveStandardPointCloud(pointCloud: pointCloud) }
-                                            group.addTask { await saveEnhancedPointCloud(pointCloud: pointCloud) }
-                                            group.addTask { await saveResearchGradePointCloud(pointCloud: pointCloud) }
-                                        }
-                                        
-                                        logger.log("🎉 ALL POINT CLOUD TYPES SAVED FOR COMPARISON")
+                                        try PointCloudStorage.save(
+                                            pointCloud,
+                                            to: captureFolderURL.appendingPathComponent(CaptureFolderManager.pointCloudFileName)
+                                        )
+                                        logger.log("Saved \(pointCloud.points.count) reconstructed points")
                                     }
                                 case .modelEntity(_, _), .bounds, .poses:
                                     // Not supported yet
@@ -1511,6 +1505,7 @@ struct SessionDetailView: View {
                                     logger.warning("Received an output for an unknown request: \(String(describing: request))")
                             }
                         case .requestError(_, let requestError):
+                            hasReconstructionError = true
                             await MainActor.run {
                                 self.isReconstructing = false
                                 let detailedError = "3Dモデル生成エラー: \(requestError.localizedDescription)\n\n考えられる原因:\n• 画像品質が不十分\n• 画像数が少ない(推奨: 50+枚)\n• 重複度が低い\n• 照明条件が悪い"
@@ -1521,8 +1516,12 @@ struct SessionDetailView: View {
                         case .processingComplete:
                             await MainActor.run {
                                 self.isReconstructing = false
-                                self.reconstructionProgress = 1.0
-                                onModelGenerated?()
+                                if !hasReconstructionError && FileManager.default.fileExists(atPath: modelFile.path) {
+                                    self.reconstructionProgress = 1.0
+                                    onModelGenerated?()
+                                } else if !hasReconstructionError {
+                                    self.reconstructionError = "3Dモデルの出力ファイルが見つかりません"
+                                }
                             }
                         case .processingCancelled:
                             await MainActor.run {
@@ -1593,438 +1592,6 @@ struct SessionDetailView: View {
             return nil
         }
         return thumbnail
-    }
-    
-    // 📊 標準品質点群（高速・軽量）
-    private func saveStandardPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        let pointCloudURL = captureFolderURL.appendingPathComponent("standard_pointcloud.ply")
-        
-        print("DEBUG saveStandardPointCloud: Saving STANDARD quality point cloud to \(pointCloudURL.path)")
-        print("DEBUG saveStandardPointCloud: Point count = \(pointCloud.points.count)")
-        
-        do {
-            let points = pointCloud.points
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
-            // 📊 標準品質PLYヘッダー - シンプル構成
-            var plyContent = """
-            ply
-            format ascii 1.0
-            comment Standard Quality Point Cloud - Fast Algorithm
-            comment Generated by iOS Object Capture Standard Engine
-            comment Total points: \(points.count)
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            // 📊 標準品質点群データ処理 - 基本属性のみ
-            for point in points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(200, 200, 200, 255)
-                
-                plyContent += String(format: "%.6f %.6f %.6f %d %d %d %d\n",
-                                   position.x, position.y, position.z,
-                                   Int(color.x), Int(color.y), Int(color.z), Int(color.w))
-            }
-            
-            try plyContent.write(to: pointCloudURL, atomically: true, encoding: .utf8)
-            
-            let processingTime = CFAbsoluteTimeGetCurrent() - startTime
-            print("DEBUG saveStandardPointCloud: Standard point cloud saved successfully")
-            print("DEBUG saveStandardPointCloud: Processing time: \(processingTime) seconds")
-            print("DEBUG saveStandardPointCloud: File size: \(plyContent.count) characters")
-            
-            logger.log("📊 Standard point cloud saved with \(points.count) points to: \(pointCloudURL.path)")
-        } catch {
-            print("DEBUG saveStandardPointCloud: Error = \(error)")
-            logger.error("Failed to save standard point cloud: \(error)")
-        }
-    }
-    
-    // 🚀 最高品質点群（高精度・重い）
-    private func saveEnhancedPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        // 🚀 最高品質の点群を保存 - 超高密度アルゴリズム
-        let pointCloudURL = captureFolderURL.appendingPathComponent("ultra_high_density_pointcloud.ply")
-        
-        print("DEBUG savePointCloudToSessionFolder: Saving ULTRA HIGH DENSITY point cloud to \(pointCloudURL.path)")
-        print("DEBUG savePointCloudToSessionFolder: Point count = \(pointCloud.points.count)")
-        
-        do {
-            let points = pointCloud.points
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
-            // 🎯 最高品質PLYヘッダー - フル詳細
-            var plyContent = """
-            ply
-            format ascii 1.0
-            comment Ultra High Density Point Cloud - Maximum Quality Algorithm
-            comment Generated by iOS Object Capture Enhanced Engine
-            comment Total points: \(points.count)
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            property float nx
-            property float ny
-            property float nz
-            property float confidence
-            end_header
-            
-            """
-            
-            // 🚀 最高品質点群データ処理 - 全ての属性を保存
-            for (index, point) in points.enumerated() {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(200, 200, 200, 255)
-                
-                // 法線ベクトルを計算（近傍点から推定）
-                let normal = calculateNormal(for: point, in: points, index: index)
-                
-                // 信頼度を計算（色の鮮明さと位置の安定性から）
-                let confidence = calculateConfidence(for: point)
-                
-                plyContent += String(format: "%.8f %.8f %.8f %d %d %d %d %.6f %.6f %.6f %.4f\n",
-                                   position.x, position.y, position.z,
-                                   Int(color.x), Int(color.y), Int(color.z), Int(color.w),
-                                   normal.x, normal.y, normal.z,
-                                   confidence)
-            }
-            
-            try plyContent.write(to: pointCloudURL, atomically: true, encoding: .utf8)
-            
-            let processingTime = CFAbsoluteTimeGetCurrent() - startTime
-            print("DEBUG savePointCloudToSessionFolder: Ultra high density point cloud saved successfully")
-            print("DEBUG savePointCloudToSessionFolder: Processing time: \(processingTime) seconds")
-            print("DEBUG savePointCloudToSessionFolder: File size: \(plyContent.count) characters")
-            
-            // Verify the file was actually created
-            let fileExists = FileManager.default.fileExists(atPath: pointCloudURL.path)
-            print("DEBUG savePointCloudToSessionFolder: File exists after save = \(fileExists)")
-            
-            logger.log("🚀 Ultra high density point cloud saved with \(points.count) points to: \(pointCloudURL.path)")
-        } catch {
-            print("DEBUG savePointCloudToSessionFolder: Error = \(error)")
-            logger.error("Failed to save ultra high density point cloud: \(error)")
-        }
-    }
-    
-    // 🎯 法線ベクトル計算（最高品質アルゴリズム）
-    private func calculateNormal(for point: PhotogrammetrySession.PointCloud.Point, in points: [PhotogrammetrySession.PointCloud.Point], index: Int) -> SIMD3<Float> {
-        // 近傍点を使って法線を推定
-        let searchRadius: Float = 0.01 // 1cm範囲
-        let targetPosition = point.position
-        var neighbors: [SIMD3<Float>] = []
-        
-        // 近傍点を検索（効率的なサンプリング）
-        let searchRange = max(0, index - 50)...min(points.count - 1, index + 50)
-        for i in searchRange {
-            let neighborPos = points[i].position
-            let distance = simd_distance(targetPosition, neighborPos)
-            if distance < searchRadius && distance > 0 {
-                neighbors.append(neighborPos)
-                if neighbors.count >= 20 { break } // 最大20点で計算
-            }
-        }
-        
-        if neighbors.count >= 3 {
-            // PCA（主成分分析）で法線を計算
-            return computeNormalFromPCA(neighbors: neighbors, center: targetPosition)
-        } else {
-            // デフォルト法線（上向き）
-            return SIMD3<Float>(0, 1, 0)
-        }
-    }
-    
-    // 🧮 PCAによる法線計算
-    private func computeNormalFromPCA(neighbors: [SIMD3<Float>], center: SIMD3<Float>) -> SIMD3<Float> {
-        // 中心からの相対位置を計算
-        let relativePositions = neighbors.map { $0 - center }
-        
-        // 共分散行列の要素を計算
-        var sumXX: Float = 0, sumYY: Float = 0, sumZZ: Float = 0
-        var sumXY: Float = 0, sumXZ: Float = 0, sumYZ: Float = 0
-        
-        for pos in relativePositions {
-            sumXX += pos.x * pos.x
-            sumYY += pos.y * pos.y
-            sumZZ += pos.z * pos.z
-            sumXY += pos.x * pos.y
-            sumXZ += pos.x * pos.z
-            sumYZ += pos.y * pos.z
-        }
-        
-        let n = Float(relativePositions.count)
-        
-        // 簡易PCA - 最小固有値に対応する固有ベクトルを法線とする
-        // この場合は簡易計算で近似
-        let normal = SIMD3<Float>(sumXX / n, sumYY / n, sumZZ / n)
-        return simd_normalize(normal)
-    }
-    
-    // 📊 信頼度計算
-    private func calculateConfidence(for point: PhotogrammetrySession.PointCloud.Point) -> Float {
-        let color = point.color ?? SIMD4<UInt8>(128, 128, 128, 255)
-        
-        // 色の鮮明さから信頼度を計算
-        let r = Float(color.x) / 255.0
-        let g = Float(color.y) / 255.0
-        let b = Float(color.z) / 255.0
-        let a = Float(color.w) / 255.0
-        
-        // 色の分散が大きいほど高信頼度
-        let colorVariance = abs(r - g) + abs(g - b) + abs(b - r)
-        let alphaConfidence = a
-        
-        return min(1.0, (colorVariance * 0.5 + alphaConfidence * 0.5))
-    }
-    
-    // 📸 従来版点群（比較用）
-    private func saveTraditionalPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        let pointCloudURL = captureFolderURL.appendingPathComponent("traditional_pointcloud.ply")
-        
-        print("DEBUG saveTraditionalPointCloud: Saving TRADITIONAL point cloud to \(pointCloudURL.path)")
-        print("DEBUG saveTraditionalPointCloud: Point count = \(pointCloud.points.count)")
-        
-        do {
-            let points = pointCloud.points
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
-            // 📸 従来版PLYヘッダー - 最もシンプル
-            var plyContent = """
-            ply
-            format ascii 1.0
-            comment Traditional Point Cloud - Original Algorithm
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            end_header
-            
-            """
-            
-            // 📸 従来版点群データ処理 - RGB色のみ
-            for point in points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(128, 128, 128, 255)
-                
-                plyContent += String(format: "%.3f %.3f %.3f %d %d %d\n",
-                                   position.x, position.y, position.z,
-                                   Int(color.x), Int(color.y), Int(color.z))
-            }
-            
-            try plyContent.write(to: pointCloudURL, atomically: true, encoding: .utf8)
-            
-            let processingTime = CFAbsoluteTimeGetCurrent() - startTime
-            print("DEBUG saveTraditionalPointCloud: Traditional point cloud saved successfully")
-            print("DEBUG saveTraditionalPointCloud: Processing time: \(processingTime) seconds")
-            
-            logger.log("📸 Traditional point cloud saved with \(points.count) points to: \(pointCloudURL.path)")
-        } catch {
-            print("DEBUG saveTraditionalPointCloud: Error = \(error)")
-            logger.error("Failed to save traditional point cloud: \(error)")
-        }
-    }
-    
-    // 🔬 研究グレード点群（最高設定）
-    private func saveResearchGradePointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        let pointCloudURL = captureFolderURL.appendingPathComponent("research_grade_pointcloud.ply")
-        
-        print("DEBUG saveResearchGradePointCloud: Saving RESEARCH GRADE point cloud to \(pointCloudURL.path)")
-        print("DEBUG saveResearchGradePointCloud: Point count = \(pointCloud.points.count)")
-        
-        do {
-            let points = pointCloud.points
-            let startTime = CFAbsoluteTimeGetCurrent()
-            
-            // 🔬 研究グレードPLYヘッダー - 全属性フル対応
-            var plyContent = """
-            ply
-            format ascii 1.0
-            comment Research Grade Point Cloud - Maximum Quality Algorithm
-            comment Generated with highest PhotogrammetrySession settings
-            comment Checkpoint-enhanced, feature sensitivity HIGH, unordered sampling
-            comment Total points: \(points.count)
-            element vertex \(points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            property float nx
-            property float ny
-            property float nz
-            property float confidence
-            property float curvature
-            property float density
-            end_header
-            
-            """
-            
-            // 🔬 研究グレード点群データ処理 - 最高精度・全属性
-            for (index, point) in points.enumerated() {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(200, 200, 200, 255)
-                
-                // 🎯 高精度法線ベクトル計算
-                let normal = calculateHighPrecisionNormal(for: point, in: points, index: index)
-                
-                // 📊 信頼度計算
-                let confidence = calculateAdvancedConfidence(for: point, in: points, index: index)
-                
-                // 🌊 曲率計算（表面の凹凸詳細度）
-                let curvature = calculateSurfaceCurvature(for: point, in: points, index: index)
-                
-                // 🔬 局所密度計算
-                let density = calculateLocalDensity(for: point, in: points, index: index)
-                
-                plyContent += String(format: "%.12f %.12f %.12f %d %d %d %d %.8f %.8f %.8f %.6f %.6f %.6f\n",
-                                   position.x, position.y, position.z,
-                                   Int(color.x), Int(color.y), Int(color.z), Int(color.w),
-                                   normal.x, normal.y, normal.z,
-                                   confidence, curvature, density)
-            }
-            
-            try plyContent.write(to: pointCloudURL, atomically: true, encoding: .utf8)
-            
-            let processingTime = CFAbsoluteTimeGetCurrent() - startTime
-            print("DEBUG saveResearchGradePointCloud: Research grade point cloud saved successfully")
-            print("DEBUG saveResearchGradePointCloud: Processing time: \(processingTime) seconds")
-            print("DEBUG saveResearchGradePointCloud: File size: \(plyContent.count) characters")
-            
-            logger.log("🔬 Research grade point cloud saved with \(points.count) points to: \(pointCloudURL.path)")
-        } catch {
-            print("DEBUG saveResearchGradePointCloud: Error = \(error)")
-            logger.error("Failed to save research grade point cloud: \(error)")
-        }
-    }
-    
-    // 🎯 高精度法線ベクトル計算（研究グレード）
-    private func calculateHighPrecisionNormal(for point: PhotogrammetrySession.PointCloud.Point, in points: [PhotogrammetrySession.PointCloud.Point], index: Int) -> SIMD3<Float> {
-        let searchRadius: Float = 0.005 // 0.5cm範囲（より精密）
-        let targetPosition = point.position
-        var neighbors: [SIMD3<Float>] = []
-        
-        // 拡張近傍検索（より多くの点を考慮）
-        let searchRange = max(0, index - 100)...min(points.count - 1, index + 100)
-        for i in searchRange {
-            let neighborPos = points[i].position
-            let distance = simd_distance(targetPosition, neighborPos)
-            if distance < searchRadius && distance > 0 {
-                neighbors.append(neighborPos)
-                if neighbors.count >= 50 { break } // 最大50点で高精度計算
-            }
-        }
-        
-        if neighbors.count >= 6 {
-            return computeHighPrecisionNormalFromPCA(neighbors: neighbors, center: targetPosition)
-        } else {
-            return SIMD3<Float>(0, 1, 0)
-        }
-    }
-    
-    // 🧮 高精度PCAによる法線計算
-    private func computeHighPrecisionNormalFromPCA(neighbors: [SIMD3<Float>], center: SIMD3<Float>) -> SIMD3<Float> {
-        let relativePositions = neighbors.map { $0 - center }
-        
-        // 共分散行列の完全計算
-        var covMatrix = matrix_float3x3()
-        for pos in relativePositions {
-            covMatrix[0][0] += pos.x * pos.x
-            covMatrix[0][1] += pos.x * pos.y
-            covMatrix[0][2] += pos.x * pos.z
-            covMatrix[1][1] += pos.y * pos.y
-            covMatrix[1][2] += pos.y * pos.z
-            covMatrix[2][2] += pos.z * pos.z
-        }
-        
-        let n = Float(relativePositions.count)
-        covMatrix[0][0] /= n; covMatrix[0][1] /= n; covMatrix[0][2] /= n
-        covMatrix[1][0] = covMatrix[0][1]; covMatrix[1][1] /= n; covMatrix[1][2] /= n
-        covMatrix[2][0] = covMatrix[0][2]; covMatrix[2][1] = covMatrix[1][2]; covMatrix[2][2] /= n
-        
-        // 最小固有値の固有ベクトルを法線として近似
-        let trace = covMatrix[0][0] + covMatrix[1][1] + covMatrix[2][2]
-        let normal = SIMD3<Float>(covMatrix[0][0] / trace, covMatrix[1][1] / trace, covMatrix[2][2] / trace)
-        
-        return simd_normalize(normal)
-    }
-    
-    // 🌊 表面曲率計算
-    private func calculateSurfaceCurvature(for point: PhotogrammetrySession.PointCloud.Point, in points: [PhotogrammetrySession.PointCloud.Point], index: Int) -> Float {
-        let searchRadius: Float = 0.01
-        let targetPosition = point.position
-        var distances: [Float] = []
-        
-        let searchRange = max(0, index - 30)...min(points.count - 1, index + 30)
-        for i in searchRange {
-            let distance = simd_distance(targetPosition, points[i].position)
-            if distance < searchRadius && distance > 0 {
-                distances.append(distance)
-            }
-        }
-        
-        if distances.count >= 3 {
-            let avgDistance = distances.reduce(0, +) / Float(distances.count)
-            let variance = distances.map { pow($0 - avgDistance, 2) }.reduce(0, +) / Float(distances.count)
-            return sqrt(variance) * 1000 // 曲率指標（0-1範囲にスケール）
-        }
-        
-        return 0.0
-    }
-    
-    // 📊 高度信頼度計算
-    private func calculateAdvancedConfidence(for point: PhotogrammetrySession.PointCloud.Point, in points: [PhotogrammetrySession.PointCloud.Point], index: Int) -> Float {
-        let color = point.color ?? SIMD4<UInt8>(128, 128, 128, 255)
-        
-        // 色情報から信頼度
-        let r = Float(color.x) / 255.0
-        let g = Float(color.y) / 255.0
-        let b = Float(color.z) / 255.0
-        let a = Float(color.w) / 255.0
-        
-        let colorVariance = abs(r - g) + abs(g - b) + abs(b - r)
-        let brightness = (r + g + b) / 3.0
-        let alphaConfidence = a
-        
-        // 位置的信頼度（近傍点密度）
-        let localDensity = calculateLocalDensity(for: point, in: points, index: index)
-        
-        return min(1.0, (colorVariance * 0.3 + brightness * 0.2 + alphaConfidence * 0.3 + localDensity * 0.2))
-    }
-    
-    // 🔬 局所密度計算
-    private func calculateLocalDensity(for point: PhotogrammetrySession.PointCloud.Point, in points: [PhotogrammetrySession.PointCloud.Point], index: Int) -> Float {
-        let searchRadius: Float = 0.02 // 2cm範囲
-        let targetPosition = point.position
-        var nearbyCount = 0
-        
-        let searchRange = max(0, index - 50)...min(points.count - 1, index + 50)
-        for i in searchRange {
-            let distance = simd_distance(targetPosition, points[i].position)
-            if distance < searchRadius && distance > 0 {
-                nearbyCount += 1
-            }
-        }
-        
-        // 密度を0-1範囲に正規化
-        return min(1.0, Float(nearbyCount) / 50.0)
     }
     
     private func loadMetadata() {

@@ -24,12 +24,7 @@ extension AppDataModel {
         }
 
         func next() -> Self {
-            guard let currentIndex = Self.allCases.firstIndex(of: self) else {
-                fatalError("Can't find self.")
-            }
-
-            let nextIndex = Self.allCases.index(after: currentIndex)
-            return Self.allCases[nextIndex == Self.allCases.endIndex ? Self.allCases.endIndex - 1 : nextIndex]
+            Self(rawValue: min(rawValue + 1, Self.orbit3.rawValue)) ?? .orbit3
         }
 
         static func < (lhs: AppDataModel.Orbit, rhs: AppDataModel.Orbit) -> Bool {

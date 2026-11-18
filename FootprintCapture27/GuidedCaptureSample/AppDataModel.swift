@@ -251,7 +251,8 @@ extension AppDataModel {
     private func attachListeners() {
         logger.debug("Attaching listeners...")
         guard let model = objectCaptureSession else {
-            fatalError("Logic error")
+            logger.error("Cannot attach listeners without a capture session")
+            return
         }
 
         tasks.append(
@@ -361,7 +362,8 @@ extension AppDataModel {
         }
 
         guard let captureFolderManager else {
-            preconditionFailure("captureFolderManager unexpectedly nil!")
+            objectCaptureSession = nil
+            throw AppError.noCaptureFolderManager
         }
 
         var configuration = ObjectCaptureSession.Configuration()
@@ -459,7 +461,7 @@ extension AppDataModel {
         logger.log("🎯 Target: Maximum possible point cloud density for \\(captureMode) mode")
         
         guard let captureFolderManager else {
-            preconditionFailure("captureFolderManager unexpectedly nil!")
+            throw AppError.noCaptureFolderManager
         }
 
         configuration.checkpointDirectory = captureFolderManager.checkpointFolder
@@ -559,7 +561,7 @@ extension AppDataModel {
 
                 removeCheckpointFolder()
             case .failed:
-                logger.error("App failed state error=\(String(describing: self.error!))")
+                logger.error("App failed state error=\(String(describing: self.error))")
                 // We will show error screen here
             case .draftSaved:
                 // Show draft saved completion screen
@@ -790,9 +792,11 @@ extension AppDataModel {
             do {
                 let outputURL = captureFolderManager.modelsFolder.appendingPathComponent("model-mobile.usdz")
                 try await performBackgroundReconstruction(outputURL: outputURL)
+                guard !Task.isCancelled else { return }
                 backgroundProcessingStatus = .completed(modelURL: outputURL)
                 logger.log("✅ Background processing completed successfully")
             } catch {
+                guard !Task.isCancelled else { return }
                 backgroundProcessingStatus = .failed(error)
                 logger.error("❌ Background processing failed: \(error)")
                 logger.error("❌ Error details: \(error.localizedDescription)")
@@ -999,7 +1003,6 @@ extension AppDataModel {
         }
         
         // 正しい処理（ReconstructionPrimaryViewと同様）
-        let pointCloudURL = captureFolderManager.pointCloudURL
         logger.log("🎯 Requesting background 3D model + point cloud generation")
         try session.process(requests: [
             .modelFile(url: outputURL),
@@ -1032,19 +1035,8 @@ extension AppDataModel {
                 case .pointCloud:
                     logger.log("✅ Point cloud generation completed")
                     if case .pointCloud(let pointCloud) = result {
-                        logger.log("🔥 Saving ALL QUALITY point clouds with \(pointCloud.points.count) points")
-                        // 複数の高品質点群を並列保存
-                        Task.detached {
-                            await withTaskGroup(of: Void.self) { group in
-                                group.addTask { await self.saveBackgroundTraditionalPointCloud(pointCloud: pointCloud) }
-                                group.addTask { await self.saveBackgroundStandardPointCloud(pointCloud: pointCloud) }
-                                group.addTask { await self.saveBackgroundUltraHighDensityPointCloud(pointCloud: pointCloud) }
-                                group.addTask { await self.saveBackgroundResearchGradePointCloud(pointCloud: pointCloud) }
-                            }
-                            await MainActor.run {
-                                logger.log("🎉 ALL BACKGROUND POINT CLOUD TYPES SAVED")
-                            }
-                        }
+                        try PointCloudStorage.save(pointCloud, to: captureFolderManager.pointCloudURL)
+                        logger.log("Saved \(pointCloud.points.count) reconstructed points")
                     }
                 case .modelEntity(_, _), .bounds, .poses:
                     break
@@ -1056,6 +1048,12 @@ extension AppDataModel {
                 throw requestError
             case .processingComplete:
                 logger.log("🎉 Background processing complete")
+                guard FileManager.default.fileExists(atPath: outputURL.path) else {
+                    throw AppError.backgroundProcessingFailed(
+                        NSError(domain: "Photogrammetry", code: 1,
+                                userInfo: [NSLocalizedDescriptionKey: "3Dモデルの出力ファイルが見つかりません"])
+                    )
+                }
                 await MainActor.run {
                     backgroundProcessingStatus = .processing(progress: 1.0)
                 }
@@ -1073,186 +1071,6 @@ extension AppDataModel {
         }
         
         logger.log("✅ Background 3D model generation completed: \(outputURL.path)")
-    }
-    
-    /// 従来版点群を保存（参考用）
-    private func saveBackgroundTraditionalPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        guard let captureFolderManager = captureFolderManager else { return }
-        let url = captureFolderManager.captureFolder.appendingPathComponent("traditional_pointcloud.ply")
-        
-        await MainActor.run {
-            logger.log("💾 Saving traditional point cloud: \(pointCloud.points.count) points")
-        }
-        
-        do {
-            var plyContent = """
-            ply
-            format ascii 1.0
-            element vertex \(pointCloud.points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            for point in pointCloud.points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
-                
-                plyContent += String(format: "%.12f %.12f %.12f %d %d %d %d\n",
-                    Double(position.x), Double(position.y), Double(position.z),
-                    Int(color.x), Int(color.y), Int(color.z), Int(color.w))
-            }
-            
-            try plyContent.write(to: url, atomically: true, encoding: .utf8)
-            await MainActor.run {
-                logger.log("✅ Traditional point cloud saved")
-            }
-        } catch {
-            await MainActor.run {
-                logger.error("❌ Failed to save traditional point cloud: \(error)")
-            }
-        }
-    }
-    
-    /// 標準品質点群を保存
-    private func saveBackgroundStandardPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        guard let captureFolderManager = captureFolderManager else { return }
-        let url = captureFolderManager.captureFolder.appendingPathComponent("standard_pointcloud.ply")
-        
-        await MainActor.run {
-            logger.log("📊 Saving standard quality point cloud: \(pointCloud.points.count) points")
-        }
-        
-        do {
-            var plyContent = """
-            ply
-            format ascii 1.0
-            element vertex \(pointCloud.points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            for point in pointCloud.points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
-                
-                plyContent += String(format: "%.6f %.6f %.6f %d %d %d %d\n",
-                    Double(position.x), Double(position.y), Double(position.z),
-                    Int(color.x), Int(color.y), Int(color.z), Int(color.w))
-            }
-            
-            try plyContent.write(to: url, atomically: true, encoding: .utf8)
-            await MainActor.run {
-                logger.log("✅ Standard point cloud saved")
-            }
-        } catch {
-            await MainActor.run {
-                logger.error("❌ Failed to save standard point cloud: \(error)")
-            }
-        }
-    }
-    
-    /// 超高密度点群を保存（最高品質）
-    private func saveBackgroundUltraHighDensityPointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        guard let captureFolderManager = captureFolderManager else { return }
-        let url = captureFolderManager.captureFolder.appendingPathComponent("ultra_high_density_pointcloud.ply")
-        
-        await MainActor.run {
-            logger.log("🚀 Saving ultra high density point cloud: \(pointCloud.points.count) points")
-        }
-        
-        do {
-            var plyContent = """
-            ply
-            format ascii 1.0
-            element vertex \(pointCloud.points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            for point in pointCloud.points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
-                
-                plyContent += String(format: "%.16f %.16f %.16f %d %d %d %d\n",
-                    Double(position.x), Double(position.y), Double(position.z),
-                    Int(color.x), Int(color.y), Int(color.z), Int(color.w))
-            }
-            
-            try plyContent.write(to: url, atomically: true, encoding: .utf8)
-            await MainActor.run {
-                logger.log("✅ Ultra high density point cloud saved with maximum precision")
-            }
-        } catch {
-            await MainActor.run {
-                logger.error("❌ Failed to save ultra high density point cloud: \(error)")
-            }
-        }
-    }
-    
-    /// 研究グレード点群を保存（最高精度）
-    private func saveBackgroundResearchGradePointCloud(pointCloud: PhotogrammetrySession.PointCloud) async {
-        guard let captureFolderManager = captureFolderManager else { return }
-        let url = captureFolderManager.captureFolder.appendingPathComponent("research_grade_pointcloud.ply")
-        
-        await MainActor.run {
-            logger.log("🔬 Saving research grade point cloud: \(pointCloud.points.count) points")
-        }
-        
-        do {
-            var plyContent = """
-            ply
-            format ascii 1.0
-            element vertex \(pointCloud.points.count)
-            property float x
-            property float y
-            property float z
-            property uchar red
-            property uchar green
-            property uchar blue
-            property uchar alpha
-            end_header
-            
-            """
-            
-            for point in pointCloud.points {
-                let position = point.position
-                let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
-                
-                plyContent += String(format: "%.20f %.20f %.20f %d %d %d %d\n",
-                    Double(position.x), Double(position.y), Double(position.z),
-                    Int(color.x), Int(color.y), Int(color.z), Int(color.w))
-            }
-            
-            try plyContent.write(to: url, atomically: true, encoding: .utf8)
-            await MainActor.run {
-                logger.log("✅ Research grade point cloud saved with maximum scientific precision")
-            }
-        } catch {
-            await MainActor.run {
-                logger.error("❌ Failed to save research grade point cloud: \(error)")
-            }
-        }
     }
     
     enum AppError: Error, LocalizedError {
