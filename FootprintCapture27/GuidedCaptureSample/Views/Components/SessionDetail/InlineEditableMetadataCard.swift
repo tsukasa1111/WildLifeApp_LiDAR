@@ -36,7 +36,7 @@ struct MetadataEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("調査結果") {
+                SwiftUI.Section("調査結果") {
                     Toggle("足跡あり", isOn: $hasFootprint)
                     if hasFootprint {
                         Picker("動物の種類", selection: $animalType) {
@@ -50,7 +50,7 @@ struct MetadataEditor: View {
                         }
                     }
                 }
-                Section("環境") {
+                SwiftUI.Section("環境") {
                     Picker("天候", selection: $weather) {
                         options(["未記録"] + weatherOptions, including: weather)
                     }
@@ -58,7 +58,7 @@ struct MetadataEditor: View {
                         options(["未記録"] + substrateOptions, including: substrate)
                     }
                 }
-                Section("メモ") {
+                SwiftUI.Section("メモ") {
                     TextField("観察したこと", text: $notes, axis: .vertical)
                         .lineLimit(2...8)
                 }
