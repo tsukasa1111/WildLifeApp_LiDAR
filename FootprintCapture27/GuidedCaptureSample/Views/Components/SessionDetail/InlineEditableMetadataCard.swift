@@ -37,11 +37,16 @@ struct MetadataEditor: View {
         NavigationStack {
             Form {
                 SwiftUI.Section("調査結果") {
-                    Toggle("足跡あり", isOn: $hasFootprint)
+                    Picker("足跡の有無", selection: $hasFootprint) {
+                        Text("足跡あり").tag(true)
+                        Text("足跡なし").tag(false)
+                    }
+                    .pickerStyle(.segmented)
                     if hasFootprint {
                         Picker("動物の種類", selection: $animalType) {
                             ForEach(animalTypes, id: \.self) { Text($0) }
                         }
+                        .accessibilityIdentifier("editor.animal")
                         if animalType == "その他" {
                             TextField("動物名", text: $otherAnimal)
                         }

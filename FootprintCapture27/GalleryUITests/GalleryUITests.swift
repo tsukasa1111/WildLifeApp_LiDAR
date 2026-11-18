@@ -43,15 +43,16 @@ final class GalleryUITests: XCTestCase {
         attachScreen("detail")
         app.buttons["編集"].tap()
         XCTAssertTrue(app.navigationBars["記録の編集"].waitForExistence(timeout: 5))
-        let toggle = app.switches["足跡あり"]
-        XCTAssertTrue(toggle.exists)
-        toggle.tap()
-        XCTAssertEqual(toggle.value as? String, "0")
+        let withoutTrack = app.buttons["足跡なし"]
+        let animal = app.descendants(matching: .any)["editor.animal"].firstMatch
+        XCTAssertTrue(animal.exists)
+        withoutTrack.tap()
+        XCTAssertFalse(animal.exists)
         app.buttons["キャンセル"].tap()
         app.buttons["編集"].tap()
-        XCTAssertEqual(toggle.value as? String, "1")
+        XCTAssertTrue(animal.waitForExistence(timeout: 5))
         attachScreen("editor")
-        toggle.tap()
+        withoutTrack.tap()
         app.buttons["保存"].tap()
         XCTAssertTrue(app.navigationBars["キャプチャ詳細"].waitForExistence(timeout: 5))
         app.buttons["閉じる"].firstMatch.tap()
