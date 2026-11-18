@@ -80,6 +80,7 @@
 		E827F3152E791FCE007BE865 /* ImageSelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F2FD2E791FCE007BE865 /* ImageSelectorView.swift */; };
 		E827F3162E791FCE007BE865 /* FootprintMarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F2FC2E791FCE007BE865 /* FootprintMarker.swift */; };
 		E827F3172E791FCE007BE865 /* GalleryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F2E32E791FCE007BE865 /* GalleryView.swift */; };
+		FA27AABB0000000000000011 /* GalleryStandaloneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA27AABB0000000000000012 /* GalleryStandaloneView.swift */; };
 		E827F3182E791FCE007BE865 /* StatusBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F2F12E791FCE007BE865 /* StatusBadge.swift */; };
 		E827F3192E791FCE007BE865 /* AnnotationBackgroundImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E827F2F62E791FCE007BE865 /* AnnotationBackgroundImage.swift */; };
 		E88B94232E0919C60085DD3E /* FootprintAnnotationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E88B94222E0919C60085DD3E /* FootprintAnnotationView.swift */; };
@@ -157,6 +158,7 @@
 		E827F24C2E71BFBC007BE865 /* OrientationTransform.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationTransform.swift; sourceTree = "<group>"; };
 		E827F2612E71C565007BE865 /* MetadataInputViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetadataInputViewModel.swift; sourceTree = "<group>"; };
 		E827F2E32E791FCE007BE865 /* GalleryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryView.swift; sourceTree = "<group>"; };
+		FA27AABB0000000000000012 /* GalleryStandaloneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryStandaloneView.swift; sourceTree = "<group>"; };
 		E827F2E52E791FCE007BE865 /* PointCloudComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudComparisonView.swift; sourceTree = "<group>"; };
 		E827F2E62E791FCE007BE865 /* PointCloudDataView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudDataView.swift; sourceTree = "<group>"; };
 		E827F2E72E791FCE007BE865 /* PointCloudViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PointCloudViewerView.swift; sourceTree = "<group>"; };
@@ -376,6 +378,7 @@
 			isa = PBXGroup;
 			children = (
 				E827F2E32E791FCE007BE865 /* GalleryView.swift */,
+				FA27AABB0000000000000012 /* GalleryStandaloneView.swift */,
 			);
 			path = Gallery;
 			sourceTree = "<group>";
@@ -588,6 +591,7 @@
 				E827F3152E791FCE007BE865 /* ImageSelectorView.swift in Sources */,
 				E827F3162E791FCE007BE865 /* FootprintMarker.swift in Sources */,
 				E827F3172E791FCE007BE865 /* GalleryView.swift in Sources */,
+				FA27AABB0000000000000011 /* GalleryStandaloneView.swift in Sources */,
 				E827F3182E791FCE007BE865 /* StatusBadge.swift in Sources */,
 				E827F3192E791FCE007BE865 /* AnnotationBackgroundImage.swift in Sources */,
 				E827F2202E70CD34007BE865 /* CustomImageSelectorView.swift in Sources */,
