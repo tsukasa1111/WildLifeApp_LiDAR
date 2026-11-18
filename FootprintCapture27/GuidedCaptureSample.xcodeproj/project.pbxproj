@@ -98,6 +98,7 @@
 		E89A88E32E007E3F0044AF22 /* EnhancedPointCloudViewerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E89A88E22E007E3F0044AF22 /* EnhancedPointCloudViewerView.swift */; };
 		F9432A622C17AB7000D540FD /* Settings.bundle in Resources */ = {isa = PBXBuildFile; fileRef = F9432A612C17AB6F00D540FD /* Settings.bundle */; };
 		F9432A642C17AC0500D540FD /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F9432A632C17AC0500D540FD /* PrivacyInfo.xcprivacy */; };
+		FA27AABB0000000000000001 /* GalleryUITests.swift in Sources */ = { isa = PBXBuildFile; fileRef = FA27AABB0000000000000002; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -196,6 +197,8 @@
 		E89A88E22E007E3F0044AF22 /* EnhancedPointCloudViewerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnhancedPointCloudViewerView.swift; sourceTree = "<group>"; };
 		F9432A612C17AB6F00D540FD /* Settings.bundle */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.plug-in"; path = Settings.bundle; sourceTree = "<group>"; };
 		F9432A632C17AC0500D540FD /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		FA27AABB0000000000000002 /* GalleryUITests.swift */ = { isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GalleryUITests/GalleryUITests.swift; sourceTree = "<group>"; };
+		FA27AABB0000000000000003 /* GalleryUITests.xctest */ = { isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GalleryUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -212,6 +215,7 @@
 		64A07DB22BFE7CCA00FDE113 = {
 			isa = PBXGroup;
 			children = (
+				FA27AABB0000000000000002 /* GalleryUITests.swift */,
 				648C27642BFEA9EE002DBFF1 /* README.md */,
 				F9432A612C17AB6F00D540FD /* Settings.bundle */,
 				64A07DBD2BFE7CCA00FDE113 /* GuidedCaptureSample */,
@@ -224,6 +228,7 @@
 		64A07DBC2BFE7CCA00FDE113 /* Products */ = {
 			isa = PBXGroup;
 			children = (
+				FA27AABB0000000000000003 /* GalleryUITests.xctest */,
 				64A07DBB2BFE7CCA00FDE113 /* GuidedCaptureSample.app */,
 			);
 			name = Products;
@@ -459,7 +464,16 @@
 			productReference = 64A07DBB2BFE7CCA00FDE113 /* GuidedCaptureSample.app */;
 			productType = "com.apple.product-type.application";
 		};
+		FA27AABB0000000000000004 /* GalleryUITests */ = { isa = PBXNativeTarget; buildConfigurationList = FA27AABB0000000000000005; buildPhases = (FA27AABB0000000000000006,); buildRules = (); dependencies = (FA27AABB0000000000000007,); name = GalleryUITests; productName = GalleryUITests; productReference = FA27AABB0000000000000003; productType = "com.apple.product-type.bundle.ui-testing"; };
 /* End PBXNativeTarget section */
+
+/* Begin PBXContainerItemProxy section */
+		FA27AABB0000000000000008 /* PBXContainerItemProxy */ = { isa = PBXContainerItemProxy; containerPortal = 64A07DB32BFE7CCA00FDE113; proxyType = 1; remoteGlobalIDString = 64A07DBA2BFE7CCA00FDE113; remoteInfo = GuidedCaptureSample; };
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		FA27AABB0000000000000007 /* GuidedCaptureSample */ = { isa = PBXTargetDependency; target = 64A07DBA2BFE7CCA00FDE113; targetProxy = FA27AABB0000000000000008; };
+/* End PBXTargetDependency section */
 
 /* Begin PBXProject section */
 		64A07DB32BFE7CCA00FDE113 /* Project object */ = {
@@ -489,6 +503,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
+				FA27AABB0000000000000004 /* GalleryUITests */,
 				64A07DBA2BFE7CCA00FDE113 /* GuidedCaptureSample */,
 			);
 		};
@@ -603,6 +618,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		FA27AABB0000000000000006 /* Sources */ = { isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (FA27AABB0000000000000001,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
@@ -805,6 +821,8 @@
 			};
 			name = Release;
 		};
+		FA27AABB0000000000000009 /* Debug */ = { isa = XCBuildConfiguration; buildSettings = { GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.example.GalleryUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = GuidedCaptureSample; }; name = Debug; };
+		FA27AABB0000000000000010 /* Release */ = { isa = XCBuildConfiguration; buildSettings = { GENERATE_INFOPLIST_FILE = YES; PRODUCT_BUNDLE_IDENTIFIER = com.example.GalleryUITests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = "1,2"; TEST_TARGET_NAME = GuidedCaptureSample; }; name = Release; };
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -826,6 +844,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		FA27AABB0000000000000005 /* Build configuration list for GalleryUITests */ = { isa = XCConfigurationList; buildConfigurations = (FA27AABB0000000000000009, FA27AABB0000000000000010,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = 64A07DB32BFE7CCA00FDE113 /* Project object */;

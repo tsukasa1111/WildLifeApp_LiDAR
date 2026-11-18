@@ -344,14 +344,14 @@ private struct CaptureProgressBar: View {
     var body: some View {
         VStack(spacing: 8) {
             HStack {
-                Text("撮影進捗")
+                Text("自動撮影")
                     .font(.headline)
                     .foregroundColor(.white)
                     .fontWeight(.medium)
                 
                 Spacer()
                 
-                Text("\(currentCount)/\(targetCount)枚")
+                Text("\(currentCount) / \(targetCount) 枚")
                     .font(.headline)
                     .foregroundColor(.white)
                     .fontWeight(.bold)
@@ -376,13 +376,15 @@ private struct CaptureProgressBar: View {
             .frame(height: 8)
         }
         .padding(.horizontal, 20)
-        .padding(.top, 10)
+        .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 12)
                 .fill(.ultraThinMaterial.opacity(0.8))
                 .environment(\.colorScheme, .dark)
         )
-        .padding(.horizontal, 16)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("自動撮影")
+        .accessibilityValue("\(targetCount)枚中\(currentCount)枚")
     }
 }
 
@@ -435,14 +437,7 @@ private struct CaptureStatusIndicator: View {
             
             Spacer()
             
-            // 撮影間隔表示
-            Text("0.3秒間隔")
-                .font(.caption)
-                .foregroundColor(.white.opacity(0.8))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Color.black.opacity(0.3))
-                .cornerRadius(4)
+
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)

@@ -84,7 +84,7 @@ struct TopOverlayButtons: View, OverlayButtons {
         }
         .frame(maxWidth: .infinity, alignment: .topLeading)
         .sheet(isPresented: $showCaptureFolders) {
-            GC_GalleryView(showCaptureFolders: $showCaptureFolders)
+            GalleryStandaloneView()
                 .environmentObject(appModel)
         }
         .onChange(of: showCaptureFolders) { _, showing in

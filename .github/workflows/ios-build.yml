@@ -44,6 +44,11 @@ jobs:
           xcrun simctl launch "$SIMULATOR_ID" "$BUNDLE_ID"
           sleep 5
           xcrun simctl io "$SIMULATOR_ID" screenshot "$RUNNER_TEMP/ui-gallery-item.png"
+          xcrun simctl terminate "$SIMULATOR_ID" "$BUNDLE_ID"
+          xcodebuild -project FootprintCapture27/GuidedCaptureSample.xcodeproj \
+            -scheme GuidedCaptureSample -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" -parallel-testing-enabled NO \
+            -only-testing:GalleryUITests test
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/ui-smoke.png"
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/ui-gallery-item.png"
       - uses: actions/upload-artifact@v7

@@ -1,23 +1,18 @@
 import SwiftUI
 
 struct GalleryStandaloneView: View {
-    @EnvironmentObject var appModel: AppDataModel
     @Environment(\.dismiss) private var dismiss
-    @State private var show: Bool = true
 
     var body: some View {
-        NavigationView {
-            GC_GalleryView(showCaptureFolders: $show)
+        NavigationStack {
+            GC_GalleryView()
                 .navigationTitle("キャプチャ一覧")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("閉じる") { dismiss(); appModel.showReadOnlyGallery = false }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("閉じる") { dismiss() }
                     }
                 }
-        }
-        .onChange(of: show) { _, newVal in
-            if newVal == false { appModel.showReadOnlyGallery = false }
         }
     }
 }

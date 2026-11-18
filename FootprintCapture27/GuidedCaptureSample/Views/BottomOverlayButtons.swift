@@ -60,7 +60,6 @@ struct BottomOverlayButtons: View, OverlayButtons {
                     default:
                         HStack {
                             Spacer()
-                            AutoCaptureToggle(session: session)
                             ManualShotButton(session: session)
                         }
                 }
@@ -247,11 +246,13 @@ private struct ManualShotButton: View {
                 session.requestImageCapture()
             },
             label: {
-                Text(Image(systemName: "button.programmable"))
+                Image(systemName: "camera.circle.fill")
                     .font(.largeTitle)
                     .foregroundColor(session.canRequestImageCapture ? .white : .gray)
+                    .frame(minWidth: 44, minHeight: 44)
             }
         )
+        .accessibilityLabel("写真を1枚撮影")
         .disabled(!session.canRequestImageCapture)
     }
 }
@@ -467,30 +468,3 @@ private struct NumOfImagesButton: View {
             comment: "Text to explain the photo limit in object capture.")
     }
 }
-
-private struct AutoCaptureToggle: View {
-    var session: ObjectCaptureSession
-
-    var body: some View {
-        // TODO: isAutoCaptureEnabled プロパティが利用できないため一時的に無効化
-        Button(action: {
-            // session.isAutoCaptureEnabled.toggle() // 一時的にコメントアウト
-        }, label: {
-            HStack(spacing: 5) {
-                Image(systemName: "circle.slash.fill")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(width: 15)
-                    .foregroundStyle(.black)
-                Text("自動")
-                    .font(.footnote)
-                    .foregroundStyle(.black)
-            }
-            .padding(.all, 5)
-            .background(.ultraThinMaterial)
-            .background(.clear) // 一時的に常にクリア
-            .cornerRadius(15)
-        })
-    }
-}
-
