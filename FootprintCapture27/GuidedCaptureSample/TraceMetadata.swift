@@ -45,22 +45,29 @@ struct TraceMetadata: Codable, Identifiable {
         substrate = try container.decodeIfPresent(String.self, forKey: .substrate)
         notes = try container.decodeIfPresent(String.self, forKey: .notes)
         
-        // Flexible timestamp decoding to handle various formats
-        do {
-            // Try standard Date decoding first (works with ISO8601 when decoder strategy is set)
-            timestamp = try container.decode(Date.self, forKey: .timestamp)
-        } catch {
-            // Fallback: try Double (Unix timestamp)
-            if let timestampDouble = try? container.decode(Double.self, forKey: .timestamp) {
-                timestamp = Date(timeIntervalSince1970: timestampDouble)
-            } else if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
-                // Fallback: try ISO8601 string format manually
-                let formatter = ISO8601DateFormatter()
-                timestamp = formatter.date(from: timestampString) ?? Date()
+        // Decode explicit formats rather than accepting Date's default 2001 epoch
+        // for a Unix timestamp, which silently shifts the recorded date.
+        if let timestampString = try? container.decode(String.self, forKey: .timestamp) {
+            let formatter = ISO8601DateFormatter()
+            if let date = formatter.date(from: timestampString) {
+                timestamp = date
             } else {
-                // Ultimate fallback
-                timestamp = Date()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                guard let date = formatter.date(from: timestampString) else {
+                    throw DecodingError.dataCorruptedError(
+                        forKey: .timestamp, in: container, debugDescription: "Invalid ISO 8601 timestamp"
+                    )
+                }
+                timestamp = date
             }
+        } else if let rawTimestamp = try? container.decode(Double.self, forKey: .timestamp) {
+            timestamp = rawTimestamp >= 1_000_000_000
+                ? Date(timeIntervalSince1970: rawTimestamp)
+                : Date(timeIntervalSinceReferenceDate: rawTimestamp)
+        } else {
+            throw DecodingError.dataCorruptedError(
+                forKey: .timestamp, in: container, debugDescription: "Missing timestamp"
+            )
         }
         
         // Decode location if present

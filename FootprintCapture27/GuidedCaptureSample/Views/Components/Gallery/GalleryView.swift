@@ -5,7 +5,7 @@ struct GC_GalleryView: View {
     @EnvironmentObject var appModel: AppDataModel
     @Binding var showCaptureFolders: Bool
     var showsCloseButton = true
-    @State private var gridLayout: GridLayout = .three
+    @State private var gridLayout: GridLayout = UIDevice.current.userInterfaceIdiom == .pad ? .three : .two
 
     // Filters and sort
     @State private var showFilterMenu = false
@@ -415,7 +415,9 @@ private struct ThumbnailView: View {
         let name = captureFolderURL.lastPathComponent
         let timestamp = String(name.prefix(20))
         guard let date = ISO8601DateFormatter().date(from: timestamp) else { return name }
-        return date.formatted(date: .abbreviated, time: .shortened)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy/MM/dd HH:mm"
+        return formatter.string(from: date)
     }
 
     private var imageCount: Int {
