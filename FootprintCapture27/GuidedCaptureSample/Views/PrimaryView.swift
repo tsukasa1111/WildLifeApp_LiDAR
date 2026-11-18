@@ -69,7 +69,7 @@ struct PrimaryView: View {
             MetadataInputView()
         } else if appModel.state == .actionSelection {
             if let session = appModel.objectCaptureSession {
-                ScanCompletedView(session: session)
+                ActionSelectionView(session: session)
             }
         } else if appModel.state == .metadataCompleted {
             MetadataCompletionView()
@@ -78,8 +78,24 @@ struct PrimaryView: View {
             CircularProgressView()
         } else if appModel.state == .draftSaved {
             DraftSavedView()
+        } else if appModel.state == .failed {
+            VStack(spacing: 16) {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.largeTitle)
+                    .foregroundColor(.orange)
+                Text("処理を続けられませんでした")
+                    .font(.title2)
+                    .fontWeight(.semibold)
+                Text(appModel.error?.localizedDescription ?? "原因を確認できませんでした。")
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("撮影へ戻る") { appModel.state = .restart }
+                    .buttonStyle(.borderedProminent)
+            }
+            .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if showProgressView {
-            if isCameraUnavailable() {
+            if isCameraUnavailable() || !appModel.cameraUnavailableMessage.isEmpty {
                 ReadOnlyGalleryContainer()
                     .environmentObject(appModel)
             } else {
@@ -103,10 +119,24 @@ private struct ReadOnlyGalleryContainer: View {
 
     var body: some View {
         NavigationView {
-            GC_GalleryView(showCaptureFolders: $show)
-                .navigationTitle("キャプチャ一覧")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("閉じる") { /* inline */ } } }
+            VStack(spacing: 0) {
+                if !appModel.cameraUnavailableMessage.isEmpty {
+                    Text(appModel.cameraUnavailableMessage)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .padding()
+                }
+                GC_GalleryView(showCaptureFolders: $show, showsCloseButton: false)
+            }
+            .navigationTitle("キャプチャ一覧")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if ObjectCaptureSession.isSupported {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button("撮影を開始") { appModel.createNewCaptureSession() }
+                    }
+                }
+            }
         }
     }
 }

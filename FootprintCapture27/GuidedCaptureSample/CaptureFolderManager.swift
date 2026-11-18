@@ -47,15 +47,19 @@ class CaptureFolderManager {
         }
         captureFolder = newFolder
 
-        // Create the subdirectories
+        // If the device runs out of space partway through setup, remove the
+        // incomplete capture so the gallery does not collect empty sessions.
         imagesFolder = newFolder.appendingPathComponent(Self.imagesFolderName)
-        try CaptureFolderManager.createDirectoryRecursively(imagesFolder)
-
         checkpointFolder = newFolder.appendingPathComponent("Checkpoint/")
-        try CaptureFolderManager.createDirectoryRecursively(checkpointFolder)
-
         modelsFolder = newFolder.appendingPathComponent("Models/")
-        try CaptureFolderManager.createDirectoryRecursively(modelsFolder)
+        do {
+            try CaptureFolderManager.createDirectoryRecursively(imagesFolder)
+            try CaptureFolderManager.createDirectoryRecursively(checkpointFolder)
+            try CaptureFolderManager.createDirectoryRecursively(modelsFolder)
+        } catch {
+            try? FileManager.default.removeItem(at: newFolder)
+            throw error
+        }
     }
     
     // 既存フォルダ用のイニシャライザ（一括処理用）
@@ -96,13 +100,13 @@ class CaptureFolderManager {
         let formatter = ISO8601DateFormatter()
         let timestamp = formatter.string(from: Date())
         let newCaptureDir = URL.documentsDirectory
-            .appendingPathComponent(timestamp, isDirectory: true)
+            .appendingPathComponent("\(timestamp)-\(UUID().uuidString)", isDirectory: true)
 
         logger.log("Creating capture path: \"\(String(describing: newCaptureDir))\"")
         let capturePath = newCaptureDir.path
         do {
             try FileManager.default.createDirectory(atPath: capturePath,
-                                                    withIntermediateDirectories: true)
+                                                    withIntermediateDirectories: false)
         } catch {
             logger.error("Failed to create capturepath=\"\(capturePath)\" error=\(String(describing: error))")
             return nil
@@ -149,6 +153,12 @@ class CaptureFolderManager {
     // MARK: - Point Cloud Support
     
     static let pointCloudFileName = "ultra_high_density_pointcloud.ply"
+    private static let pointCloudFileNames = [
+        "traditional_pointcloud.ply",
+        "standard_pointcloud.ply",
+        pointCloudFileName,
+        "research_grade_pointcloud.ply"
+    ]
     
     var pointCloudURL: URL {
         return captureFolder.appendingPathComponent(Self.pointCloudFileName)
@@ -191,14 +201,7 @@ class CaptureFolderManager {
     
     func hasPointCloud() -> Bool {
         // Check for any of the four point cloud types
-        let pointCloudTypes = [
-            "traditional_pointcloud.ply",
-            "standard_pointcloud.ply", 
-            "ultra_high_density_pointcloud.ply",
-            "research_grade_pointcloud.ply"
-        ]
-        
-        for fileName in pointCloudTypes {
+        for fileName in Self.pointCloudFileNames {
             let url = captureFolder.appendingPathComponent(fileName)
             if FileManager.default.fileExists(atPath: url.path) {
                 return true
@@ -208,15 +211,17 @@ class CaptureFolderManager {
     }
     
     func getPointCloudFileSize() -> Int64? {
-        guard hasPointCloud() else { return nil }
-        
-        do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: pointCloudURL.path)
-            return attributes[.size] as? Int64
-        } catch {
-            logger.error("Failed to get point cloud file size: \(error)")
-            return nil
+        for fileName in Self.pointCloudFileNames {
+            let url = captureFolder.appendingPathComponent(fileName)
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            do {
+                let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+                if let size = attributes[.size] as? Int64 { return size }
+            } catch {
+                logger.error("Failed to get point cloud file size: \(error)")
+            }
         }
+        return nil
     }
     
     // MARK: - 3D Model Support

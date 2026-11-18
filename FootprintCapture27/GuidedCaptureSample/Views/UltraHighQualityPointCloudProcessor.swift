@@ -168,7 +168,7 @@ class UltraHighQualityPointCloudProcessor: ObservableObject {
         // 🚀 16桁精度での点群データ保存
         for (index, point) in points.enumerated() {
             let position = point.position
-            let color = point.color ?? SIMD4<UInt8>(255, 255, 255, 255)
+            let color = point.color
             let confidence = calculatePointConfidence(point: point, allPoints: points)
             
             plyContent += String(format: "%.16f %.16f %.16f %d %d %d %d %.8f\n",

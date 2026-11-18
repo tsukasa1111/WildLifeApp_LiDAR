@@ -18,6 +18,7 @@ struct ContentView: View {
         PrimaryView()
             .onAppear(perform: {
                 UIApplication.shared.isIdleTimerDisabled = true
+                appModel.createNewCaptureSession()
             })
             .onDisappear(perform: {
                 UIApplication.shared.isIdleTimerDisabled = false

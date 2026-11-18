@@ -65,17 +65,12 @@ struct MetadataCompletionView: View {
         .onAppear {
             logger.log("🎉 MetadataCompletionView appeared - SUCCESS!")
             
-            // 1.5秒後に自動的に移行
+            // 保存後は3D生成または下書き保存を選べる画面へ進む。
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                goToNewCapture()
+                guard appModel.state == .metadataCompleted else { return }
+                appModel.state = .actionSelection
             }
         }
-    }
-    
-    private func goToNewCapture() {
-        logger.log("Going back to scan list - using restart to reset everything")
-        // .restartを使ってAppDataModelのreset()を呼び出し、適切にクリーンアップ
-        appModel.state = .restart
     }
 }
 

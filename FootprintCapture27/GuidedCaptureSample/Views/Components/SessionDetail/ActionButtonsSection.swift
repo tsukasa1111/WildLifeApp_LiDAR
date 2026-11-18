@@ -11,7 +11,6 @@ struct ActionButtonsSection: View {
     @EnvironmentObject var appModel: AppDataModel
     @State private var showPointCloud = false
     @State private var selectedPointCloudType: PointCloudType = .enhanced
-    @State private var showAnnotatedImage = false
 
     private var objectCaptureSession: ObjectCaptureSession? {
         return appModel.objectCaptureSession
@@ -128,11 +127,6 @@ struct ActionButtonsSection: View {
                 }
             }
         }
-        .sheet(isPresented: $showAnnotatedImage) {
-            if hasAnnotatedImage() {
-                AnnotatedImageViewer(captureFolderManager: createCaptureFolderManager())
-            }
-        }
     }
 
     // MARK: - Helpers
@@ -162,13 +156,4 @@ struct ActionButtonsSection: View {
         captureFolderURL.appendingPathComponent(type.rawValue)
     }
 
-    private func hasAnnotatedImage() -> Bool {
-        let annotatedImageURL = captureFolderURL.appendingPathComponent(CaptureFolderManager.annotatedImageFileName)
-        return FileManager.default.fileExists(atPath: annotatedImageURL.path)
-    }
-
-    private func createCaptureFolderManager() -> CaptureFolderManager {
-        do { return try CaptureFolderManager(existingFolder: captureFolderURL) }
-        catch { return try! CaptureFolderManager() }
-    }
 }

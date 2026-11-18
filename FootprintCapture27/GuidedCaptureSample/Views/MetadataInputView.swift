@@ -13,30 +13,6 @@ struct MetadataInputView: View {
     @EnvironmentObject var appModel: AppDataModel
     @StateObject private var viewModel = MetadataInputViewModel()
     
-    // 足跡有無の選択
-    @State private var hasFootprint: Bool = true
-    
-    // 共通項目
-    @State private var weather: String = "晴れ"
-    @State private var softness: Int = 2
-    @State private var notes: String = ""
-    
-    // 足跡ありの場合のみ必要な項目
-    @State private var animalType: String = "イノシシ"
-    @State private var otherAnimal: String = ""
-    @State private var hasCompletedAnnotation = false
-    @State private var showingFootprintAnnotation = false
-    @State private var thumbnailImage: UIImage?
-    @State private var isLoadingThumbnail = false
-    @State private var selectedImageIndex: Int = 2  // 3枚目をデフォルト（0ベース）
-    @State private var availableImages: [URL] = []
-    @State private var showImageSelector = false
-    
-    // バリデーション用の状態
-    @State private var showValidationError: Bool = false
-    @State private var validationMessage: String = ""
-    @State private var isSaving: Bool = false
-    
     let animalTypes = [
         ("イノシシ", "🐗", "Sus scrofa"),
         ("シカ", "🦌", "Cervus nippon"),
@@ -55,36 +31,6 @@ struct MetadataInputView: View {
         (2, "🟤", "普通"),
         (3, "🤎", "柔らかい")
     ]
-    
-    // リアルタイムバリデーション
-    private var isValidInput: Bool {
-        if hasFootprint && animalType == "その他" {
-            let trimmedOtherAnimal = otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines)
-            return !trimmedOtherAnimal.isEmpty && trimmedOtherAnimal.count <= 20 && notes.count <= 200
-        }
-        
-        // 足跡あり/なし問わずメモの最大文字数のみを検証
-        return notes.count <= 200
-    }
-    
-    private var validationErrors: [String] {
-        var errors: [String] = []
-        
-        if hasFootprint && animalType == "その他" {
-            let trimmedOtherAnimal = otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedOtherAnimal.isEmpty {
-                errors.append("動物名を入力してください")
-            } else if trimmedOtherAnimal.count > 20 {
-                errors.append("動物名は20文字以内で入力してください")
-            }
-        }
-        
-        if notes.count > 200 {
-            errors.append("メモは200文字以内で入力してください")
-        }
-        
-        return errors
-    }
     
     // 位置情報表示用のcomputed properties
     private var hasValidLocation: Bool {
@@ -141,7 +87,9 @@ struct MetadataInputView: View {
                 if let captureFolderManager = appModel.captureFolderManager {
                     FootprintAnnotationView(
                         captureImage: image,
-                        captureFolderManager: captureFolderManager
+                        captureFolderManager: captureFolderManager,
+                        sourceImageName: viewModel.availableImages.indices.contains(viewModel.selectedImageIndex)
+                            ? viewModel.availableImages[viewModel.selectedImageIndex].lastPathComponent : nil
                     )
                     .onDisappear {
                         viewModel.checkAnnotationCompletion(appModel: appModel)
@@ -198,7 +146,7 @@ struct MetadataInputView: View {
             viewModel.loadAvailableImages(appModel: appModel)
             
             // 足跡ありの場合のみ画像を事前読み込み
-            if hasFootprint {
+            if viewModel.hasFootprint {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     viewModel.loadThumbnailImage(appModel: appModel)
                     viewModel.checkAnnotationCompletion(appModel: appModel)
@@ -225,7 +173,7 @@ struct MetadataInputView: View {
                 Circle()
                     .fill(
                         LinearGradient(
-                            colors: hasFootprint ? [Color.blue.opacity(0.2), Color.green.opacity(0.1)] : [Color.orange.opacity(0.2), Color.purple.opacity(0.1)],
+                            colors: viewModel.hasFootprint ? [Color.blue.opacity(0.2), Color.green.opacity(0.1)] : [Color.orange.opacity(0.2), Color.purple.opacity(0.1)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -236,7 +184,7 @@ struct MetadataInputView: View {
                     .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: hasFootprint ? [.blue, .green] : [.orange, .purple],
+                            colors: viewModel.hasFootprint ? [.blue, .green] : [.orange, .purple],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
@@ -574,7 +522,13 @@ struct MetadataInputView: View {
                 )
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(viewModel.isLoadingThumbnail)
+            .disabled(viewModel.isLoadingThumbnail || viewModel.availableImages.isEmpty)
+
+            if viewModel.availableImages.isEmpty {
+                Text("撮影画像がないため、足跡位置を設定できません")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
             
             // 画像選択ボタン
             HStack {
@@ -645,7 +599,7 @@ struct MetadataInputView: View {
     
     private func weatherButton(option: (String, String, String)) -> some View {
         Button(action: {
-            weather = option.0
+            viewModel.weather = option.0
         }) {
             VStack(spacing: 6) {
                 Text(option.1)
@@ -654,16 +608,16 @@ struct MetadataInputView: View {
                 Text(option.0)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(weather == option.0 ? .blue : .secondary)
+                    .foregroundColor(viewModel.weather == option.0 ? .blue : .secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(weather == option.0 ? Color.blue.opacity(0.1) : Color(UIColor.systemBackground))
+                    .fill(viewModel.weather == option.0 ? Color.blue.opacity(0.1) : Color(UIColor.systemBackground))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(weather == option.0 ? Color.blue.opacity(0.5) : Color(UIColor.systemGray4), lineWidth: 1)
+                            .stroke(viewModel.weather == option.0 ? Color.blue.opacity(0.5) : Color(UIColor.systemGray4), lineWidth: 1)
                     )
             )
         }
@@ -701,7 +655,7 @@ struct MetadataInputView: View {
     
     private func softnessButton(option: (Int, String, String)) -> some View {
         Button(action: {
-            softness = option.0
+            viewModel.softness = option.0
         }) {
             VStack(spacing: 6) {
                 Text(option.1)
@@ -710,16 +664,16 @@ struct MetadataInputView: View {
                 Text(option.2)
                     .font(.caption)
                     .fontWeight(.medium)
-                    .foregroundColor(softness == option.0 ? .brown : .secondary)
+                    .foregroundColor(viewModel.softness == option.0 ? .brown : .secondary)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
             .background(
                 RoundedRectangle(cornerRadius: 10)
-                    .fill(softness == option.0 ? Color.brown.opacity(0.1) : Color(UIColor.systemBackground))
+                    .fill(viewModel.softness == option.0 ? Color.brown.opacity(0.1) : Color(UIColor.systemBackground))
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
-                            .stroke(softness == option.0 ? Color.brown.opacity(0.5) : Color(UIColor.systemGray4), lineWidth: 1)
+                            .stroke(viewModel.softness == option.0 ? Color.brown.opacity(0.5) : Color(UIColor.systemGray4), lineWidth: 1)
                     )
             )
         }
@@ -810,19 +764,19 @@ struct MetadataInputView: View {
             }
             
             VStack(alignment: .trailing, spacing: 4) {
-                TextEditor(text: $notes)
+                TextEditor(text: $viewModel.notes)
                     .frame(minHeight: 80)
                     .padding(8)
                     .background(Color(UIColor.systemBackground))
                     .cornerRadius(8)
                     .overlay(
                         RoundedRectangle(cornerRadius: 8)
-                            .stroke(notes.count > 200 ? Color.red : Color(UIColor.systemGray4), lineWidth: 1)
+                            .stroke(viewModel.notes.count > 200 ? Color.red : Color(UIColor.systemGray4), lineWidth: 1)
                     )
                 
-                Text("\(notes.count)/200")
+                Text("\(viewModel.notes.count)/200")
                     .font(.caption)
-                    .foregroundColor(notes.count > 200 ? .red : .secondary)
+                    .foregroundColor(viewModel.notes.count > 200 ? .red : .secondary)
             }
         }
         .padding(16)
@@ -834,7 +788,7 @@ struct MetadataInputView: View {
     
     private var footerSection: some View {
         VStack(spacing: 16) {
-            if !validationErrors.isEmpty {
+            if !viewModel.validationErrors.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     HStack {
                         Image(systemName: "exclamationmark.triangle.fill")
@@ -849,7 +803,7 @@ struct MetadataInputView: View {
                     }
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        ForEach(validationErrors, id: \.self) { error in
+                        ForEach(viewModel.validationErrors, id: \.self) { error in
                             HStack(alignment: .top, spacing: 6) {
                                 Text("•")
                                     .foregroundColor(.red)
@@ -908,185 +862,9 @@ struct MetadataInputView: View {
     // MARK: - Helper Methods
     
     private func saveWithViewModel() async {
-        // sync local fields to ViewModel
-        viewModel.hasFootprint = hasFootprint
-        viewModel.weather = weather
-        viewModel.softness = softness
-        viewModel.notes = notes
-        viewModel.animalType = animalType
-        viewModel.otherAnimal = otherAnimal
-        viewModel.hasCompletedAnnotation = hasCompletedAnnotation
         await viewModel.saveMetadata(appModel: appModel)
     }
 
-    private func openFootprintAnnotation() {
-        guard hasFootprint else { return }
-        
-        if thumbnailImage == nil {
-            loadThumbnailImageSynchronously()
-        }
-        showingFootprintAnnotation = true
-    }
-    
-    private func loadThumbnailImage() {
-        guard let captureFolderManager = appModel.captureFolderManager else {
-            logger.error("CaptureFolderManager is nil")
-            return
-        }
-        
-        isLoadingThumbnail = true
-        
-        Task {
-            do {
-                let contents = try FileManager.default.contentsOfDirectory(
-                    at: captureFolderManager.imagesFolder,
-                    includingPropertiesForKeys: nil,
-                    options: []
-                )
-                
-                let sortedImages = contents
-                    .filter({ !$0.hasDirectoryPath })
-                    .sorted(by: { $0.path < $1.path })
-                
-                // 選択されたインデックスの画像を使用
-                let selectedImageURL: URL
-                if selectedImageIndex < sortedImages.count {
-                    selectedImageURL = sortedImages[selectedImageIndex]
-                    logger.log("Using selected image \(selectedImageIndex + 1) for annotation: \(selectedImageURL.lastPathComponent)")
-                } else if !sortedImages.isEmpty {
-                    selectedImageURL = sortedImages.last!  // インデックスが範囲外の場合は最後の画像
-                    logger.log("Selected index out of range, using last image: \(selectedImageURL.lastPathComponent)")
-                } else {
-                    logger.error("No images found in capture folder")
-                    await MainActor.run {
-                        isLoadingThumbnail = false
-                    }
-                    return
-                }
-                
-                let imageData = try Data(contentsOf: selectedImageURL)
-                guard let uiImage = UIImage(data: imageData) else {
-                    logger.error("Failed to create UIImage from data")
-                    await MainActor.run {
-                        isLoadingThumbnail = false
-                    }
-                    return
-                }
-                
-                await MainActor.run {
-                    thumbnailImage = uiImage
-                    isLoadingThumbnail = false
-                    logger.log("Successfully loaded thumbnail image")
-                }
-            } catch {
-                logger.error("Failed to load thumbnail image: \(error)")
-                await MainActor.run {
-                    isLoadingThumbnail = false
-                }
-            }
-        }
-    }
-    
-    private func loadThumbnailImageSynchronously() {
-        logger.log("Loading thumbnail image synchronously...")
-        loadThumbnailImage()
-    }
-    
-    private func loadAvailableImages() {
-        guard let captureFolderManager = appModel.captureFolderManager else { return }
-        
-        do {
-            let contents = try FileManager.default.contentsOfDirectory(
-                at: captureFolderManager.imagesFolder,
-                includingPropertiesForKeys: nil,
-                options: []
-            )
-            
-            availableImages = contents
-                .filter({ !$0.hasDirectoryPath })
-                .sorted(by: { $0.path < $1.path })
-            
-            // 選択されたインデックスが範囲外の場合は調整
-            if selectedImageIndex >= availableImages.count && !availableImages.isEmpty {
-                selectedImageIndex = availableImages.count - 1
-            }
-            
-            logger.log("Found \(availableImages.count) images, selected index: \(selectedImageIndex)")
-        } catch {
-            logger.error("Failed to load available images: \(error)")
-            availableImages = []
-        }
-    }
-    
-    private func checkAnnotationCompletion() {
-        guard hasFootprint, let captureFolderManager = appModel.captureFolderManager else {
-            hasCompletedAnnotation = false
-            return
-        }
-        
-        let annotatedImageURL = captureFolderManager.captureFolder.appendingPathComponent("annotated_footprints.jpg")
-        hasCompletedAnnotation = FileManager.default.fileExists(atPath: annotatedImageURL.path)
-        
-        logger.log("Annotation completion check: \(hasCompletedAnnotation)")
-    }
-    
-    private func saveMetadata() {
-        guard !isSaving else { return }
-        
-        let errors = validationErrors
-        if !errors.isEmpty {
-            validationMessage = errors.joined(separator: "\n")
-            showValidationError = true
-            return
-        }
-        
-        isSaving = true
-        
-        Task {
-            do {
-                let metadata = TraceMetadata(
-                    hasFootprint: hasFootprint,
-                    animalType: hasFootprint ? (animalType == "その他" ? otherAnimal : animalType) : "",
-                    traceType: hasFootprint ? "足跡" : "調査地点",
-                    weather: weather,
-                    substrate: softnessOptions.first(where: { $0.0 == softness })?.2,
-                    notes: notes.isEmpty ? nil : notes,
-                    location: displayLocation,
-                    timestamp: Date()
-                )
-                
-                // メタデータを保存
-                if let captureFolderManager = appModel.captureFolderManager {
-                    let metadataURL = captureFolderManager.captureFolder.appendingPathComponent("metadata.json")
-                    let encoder = JSONEncoder()
-                    encoder.dateEncodingStrategy = .iso8601
-                    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-                    let jsonData = try encoder.encode(metadata)
-                    try jsonData.write(to: metadataURL)
-                    
-                    logger.log("📅 Saved metadata with timestamp: \(metadata.timestamp)")
-                    logger.log("📁 Saved to: \(metadataURL.path)")
-                    
-                    logger.log("✅ Metadata saved successfully")
-                    
-                    await MainActor.run {
-                        isSaving = false
-                        // 完了画面に遷移
-                        appModel.state = .metadataCompleted
-                    }
-                } else {
-                    throw NSError(domain: "MetadataInputView", code: 1, userInfo: [NSLocalizedDescriptionKey: "CaptureFolderManager not found"])
-                }
-            } catch {
-                logger.error("Failed to save metadata: \(error)")
-                await MainActor.run {
-                    isSaving = false
-                    validationMessage = "保存に失敗しました: \(error.localizedDescription)"
-                    showValidationError = true
-                }
-            }
-        }
-    }
 }
 
 // moved: LocationInfoRow and ImageSelectorView are split into Views/Components.

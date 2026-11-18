@@ -17,13 +17,15 @@ struct GC_FootprintConfirmationView: View {
         self.availableImages = availableImages
         self.captureFolderManager = captureFolderManager
         self.onDismiss = onDismiss
-        self._selectedImageIndex = State(initialValue: min(initialSelectedIndex, availableImages.count - 1))
+        let savedImageName = captureFolderManager.loadAnnotationMetadata()?.sourceImageName
+        let preferredIndex = availableImages.firstIndex { $0.lastPathComponent == savedImageName } ?? initialSelectedIndex
+        self._selectedImageIndex = State(initialValue: max(0, min(preferredIndex, availableImages.count - 1)))
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-                if let displayImage = userHasSelectedImage ? (currentImage ?? annotatedImage) : (annotatedImage ?? currentImage) {
+                if let displayImage = userHasSelectedImage ? currentImage : (annotatedImage ?? currentImage) {
                     GeometryReader { geometry in
                         ScrollView([.horizontal, .vertical]) {
                             Image(uiImage: displayImage)
@@ -58,7 +60,7 @@ struct GC_FootprintConfirmationView: View {
                         Text("使用する画像:")
                             .font(.headline)
                         Spacer()
-                        Text("\(selectedImageIndex + 1)枚目")
+                        Text(availableImages.isEmpty ? "画像なし" : "\(selectedImageIndex + 1)枚目")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
@@ -69,6 +71,7 @@ struct GC_FootprintConfirmationView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.blue)
+                        .disabled(availableImages.isEmpty)
                         
                         Spacer()
                         
@@ -77,6 +80,7 @@ struct GC_FootprintConfirmationView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.green)
+                        .disabled(currentImage == nil)
                     }
                 }
                 .padding(.horizontal)
@@ -124,6 +128,8 @@ struct GC_FootprintConfirmationView: View {
                 FootprintAnnotationView(
                     captureImage: currentImage,
                     captureFolderManager: captureFolderManager,
+                    sourceImageName: availableImages.indices.contains(selectedImageIndex)
+                        ? availableImages[selectedImageIndex].lastPathComponent : nil,
                     onSaveComplete: { checkForAnnotatedImage() }
                 )
                 .onDisappear { checkForAnnotatedImage() }
@@ -132,12 +138,19 @@ struct GC_FootprintConfirmationView: View {
     }
     
     private func loadSelectedImage() {
-        guard selectedImageIndex < availableImages.count else { return }
+        guard availableImages.indices.contains(selectedImageIndex) else {
+            currentImage = nil
+            isLoadingImage = false
+            return
+        }
         isLoadingImage = true
+        currentImage = nil
+        let requestedIndex = selectedImageIndex
         let imageURL = availableImages[selectedImageIndex]
         Task {
             let image = await loadImage(from: imageURL)
             await MainActor.run {
+                guard self.selectedImageIndex == requestedIndex else { return }
                 self.currentImage = image
                 self.isLoadingImage = false
             }

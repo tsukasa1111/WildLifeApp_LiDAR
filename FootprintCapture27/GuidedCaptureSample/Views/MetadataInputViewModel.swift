@@ -84,13 +84,16 @@ final class MetadataInputViewModel: ObservableObject {
                 includingPropertiesForKeys: nil,
                 options: []
             )
-            availableImages = contents.filter { !$0.hasDirectoryPath }.sorted { $0.path < $1.path }
+            availableImages = contents.filter { url in
+                !url.hasDirectoryPath && ["heic", "jpg", "jpeg", "png"].contains(url.pathExtension.lowercased())
+            }.sorted { $0.path < $1.path }
             if selectedImageIndex >= availableImages.count && !availableImages.isEmpty {
                 selectedImageIndex = availableImages.count - 1
             }
-            logger.log("Found \\(self.availableImages.count) images, selected index: \\(self.selectedImageIndex)")
+            if availableImages.isEmpty { selectedImageIndex = 0 }
+            logger.log("Found \(self.availableImages.count) images, selected index: \(self.selectedImageIndex)")
         } catch {
-            logger.error("Failed to load available images: \\(error.localizedDescription)")
+            logger.error("Failed to load available images: \(error.localizedDescription)")
             availableImages = []
         }
     }
@@ -98,9 +101,13 @@ final class MetadataInputViewModel: ObservableObject {
     func loadThumbnailImage(appModel: AppDataModel) {
         guard let cfm = appModel.captureFolderManager else {
             logger.error("CaptureFolderManager is nil")
+            thumbnailImage = nil
+            isLoadingThumbnail = false
             return
         }
         isLoadingThumbnail = true
+        thumbnailImage = nil
+        let requestedIndex = selectedImageIndex
         Task {
             do {
                 let contents = try FileManager.default.contentsOfDirectory(
@@ -108,33 +115,42 @@ final class MetadataInputViewModel: ObservableObject {
                     includingPropertiesForKeys: nil,
                     options: []
                 )
-                let sorted = contents.filter { !$0.hasDirectoryPath }.sorted { $0.path < $1.path }
+                let sorted = contents.filter { url in
+                    !url.hasDirectoryPath && ["heic", "jpg", "jpeg", "png"].contains(url.pathExtension.lowercased())
+                }.sorted { $0.path < $1.path }
                 let chosenURL: URL
-                if selectedImageIndex < sorted.count {
-                    chosenURL = sorted[self.selectedImageIndex]
-                    logger.log("Using selected image \\(self.selectedImageIndex + 1): \\(chosenURL.lastPathComponent)")
+                if requestedIndex >= 0 && requestedIndex < sorted.count {
+                    chosenURL = sorted[requestedIndex]
+                    logger.log("Using selected image \(requestedIndex + 1): \(chosenURL.lastPathComponent)")
                 } else if let last = sorted.last {
                     chosenURL = last
-                    logger.log("Index out of range, using last image: \\(chosenURL.lastPathComponent)")
+                    logger.log("Index out of range, using last image: \(chosenURL.lastPathComponent)")
                 } else {
                     logger.error("No images found in capture folder")
-                    await MainActor.run { self.isLoadingThumbnail = false }
+                    await MainActor.run {
+                        if self.selectedImageIndex == requestedIndex { self.isLoadingThumbnail = false }
+                    }
                     return
                 }
                 let data = try Data(contentsOf: chosenURL)
                 guard let uiImage = UIImage(data: data) else {
                     logger.error("Failed to create UIImage from data")
-                    await MainActor.run { self.isLoadingThumbnail = false }
+                    await MainActor.run {
+                        if self.selectedImageIndex == requestedIndex { self.isLoadingThumbnail = false }
+                    }
                     return
                 }
                 await MainActor.run {
+                    guard self.selectedImageIndex == requestedIndex else { return }
                     self.thumbnailImage = uiImage
                     self.isLoadingThumbnail = false
                     logger.log("Successfully loaded thumbnail image")
                 }
             } catch {
-                logger.error("Failed to load thumbnail image: \\(error.localizedDescription)")
-                await MainActor.run { self.isLoadingThumbnail = false }
+                logger.error("Failed to load thumbnail image: \(error.localizedDescription)")
+                await MainActor.run {
+                    if self.selectedImageIndex == requestedIndex { self.isLoadingThumbnail = false }
+                }
             }
         }
     }
@@ -149,9 +165,9 @@ final class MetadataInputViewModel: ObservableObject {
             hasCompletedAnnotation = false
             return
         }
-        let annotatedImageURL = cfm.captureFolder.appendingPathComponent("annotated_footprints.jpg")
-        hasCompletedAnnotation = FileManager.default.fileExists(atPath: annotatedImageURL.path)
-        logger.log("Annotation completion check: \\(self.hasCompletedAnnotation)")
+        hasCompletedAnnotation = cfm.hasAnnotatedImage() &&
+            (cfm.loadAnnotationMetadata()?.annotations.isEmpty == false)
+        logger.log("Annotation completion check: \(self.hasCompletedAnnotation)")
     }
 
     func saveMetadata(appModel: AppDataModel) async {
@@ -182,18 +198,17 @@ final class MetadataInputViewModel: ObservableObject {
             encoder.dateEncodingStrategy = .iso8601
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
             let json = try encoder.encode(metadata)
-            try json.write(to: url)
-            logger.log("📅 Saved metadata with timestamp: \\(metadata.timestamp)")
-            logger.log("📁 Saved to: \\(url.path)")
+            try json.write(to: url, options: .atomic)
+            logger.log("Saved metadata with timestamp: \(metadata.timestamp)")
             await MainActor.run {
                 self.isSaving = false
                 appModel.state = .metadataCompleted
             }
         } catch {
-            logger.error("Failed to save metadata: \\(error.localizedDescription)")
+            logger.error("Failed to save metadata: \(error.localizedDescription)")
             await MainActor.run {
                 self.isSaving = false
-                self.validationMessage = "保存に失敗しました: \\(error.localizedDescription)"
+                self.validationMessage = "保存に失敗しました: \(error.localizedDescription)"
                 self.showValidationError = true
             }
         }

@@ -24,7 +24,7 @@ struct ActionSelectionView: View {
                 }) {
                     HStack {
                         Image(systemName: "chevron.left")
-                        Text("一覧に戻る")
+                        Text("撮影を終了")
                     }
                     .foregroundColor(.blue)
                 }
@@ -78,7 +78,6 @@ struct ActionSelectionView: View {
                 // Save Draft Button  
                 Button(action: {
                     logger.log("Saving as draft")
-                    appModel.saveDraft()
                     appModel.state = .draftSaved
                 }) {
                     HStack {

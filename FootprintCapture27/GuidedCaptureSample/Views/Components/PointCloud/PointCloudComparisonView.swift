@@ -75,7 +75,7 @@ struct PointCloudComparisonView: View {
     private func loadPointCloudData(for type: PointCloudType) async {
         let url = captureFolderURL.appendingPathComponent(type.rawValue)
         do {
-            let data = try String(contentsOf: url)
+            let data = try String(contentsOf: url, encoding: .utf8)
             let lines = data.components(separatedBy: .newlines)
             let pointCount = lines.filter { !$0.isEmpty && !$0.hasPrefix("ply") && !$0.hasPrefix("format") && !$0.hasPrefix("comment") && !$0.hasPrefix("element") && !$0.hasPrefix("property") && !$0.hasPrefix("end_header") }.count
             let attributes = try FileManager.default.attributesOfItem(atPath: url.path)

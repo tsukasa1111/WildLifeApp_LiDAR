@@ -8,7 +8,6 @@ Top-level View for the Object Capture portion where shots are taken.
 import RealityKit
 import SwiftUI
 import os
-import AVFoundation
 
 private let logger = Logger(subsystem: GuidedCaptureSampleApp.subsystem, category: "CapturePrimaryView")
 
@@ -39,10 +38,6 @@ struct CapturePrimaryView: View {
         }
         .onAppear(perform: {
             UIApplication.shared.isIdleTimerDisabled = true
-            // カメラ初期化最適化
-            optimizeCameraStartup()
-            // 縦画面固定を強制
-            enforcePortraitOrientation()
         })
         .onDisappear(perform: {
             UIApplication.shared.isIdleTimerDisabled = false
@@ -75,87 +70,6 @@ struct CapturePrimaryView: View {
         }
     }
     
-    /// カメラ起動の最適化
-    private func optimizeCameraStartup() {
-        Task {
-            await withTaskGroup(of: Void.self) { group in
-                // 並列でカメラ関連の最適化を実行
-                group.addTask { await forceDeviceOrientationUpdate() }
-                group.addTask { await warmupCameraSubsystem() }
-                group.addTask { await preloadCameraPermissions() }
-            }
-        }
-    }
-    
-    /// デバイス向きの強制更新（iPhoneを縦にする効果を再現）
-    private func forceDeviceOrientationUpdate() async {
-        await MainActor.run {
-            // デバイス向き通知の強制開始
-            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-            
-            // 向き情報の強制更新
-            let orientation = UIDevice.current.orientation
-            logger.log("🔄 Device orientation forced update: \(orientation.rawValue)")
-        }
-    }
-    
-    /// カメラサブシステムのウォームアップ
-    private func warmupCameraSubsystem() async {
-        await Task.detached(priority: .userInitiated) {
-            // バックカメラデバイスの事前初期化
-            if let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) {
-                // デバイスプロパティへのアクセスでキャッシュを温める
-                _ = backCamera.isConnected
-                _ = backCamera.position
-                _ = backCamera.deviceType
-                
-                // フォーカスモードの事前設定
-                try? backCamera.lockForConfiguration()
-                if backCamera.isFocusModeSupported(.continuousAutoFocus) {
-                    backCamera.focusMode = .continuousAutoFocus
-                }
-                backCamera.unlockForConfiguration()
-            }
-        }.value
-    }
-    
-    /// カメラ権限の事前確認
-    private func preloadCameraPermissions() async {
-        await Task.detached(priority: .utility) {
-            // カメラ権限の事前チェック（キャッシュされる）
-            let status = AVCaptureDevice.authorizationStatus(for: .video)
-            await MainActor.run {
-                logger.log("📹 Camera permission status: \(status.rawValue)")
-            }
-        }.value
-    }
-    
-    /// 縦画面固定を強制
-    private func enforcePortraitOrientation() {
-        DispatchQueue.main.async {
-            guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene else {
-                return
-            }
-            
-            // 縦画面固定を強制
-            let orientationUpdate = UIWindowScene.GeometryPreferences.iOS(interfaceOrientations: .portrait)
-            windowScene.requestGeometryUpdate(orientationUpdate) { error in
-                if error != nil {
-                    logger.log("Failed to enforce portrait orientation: \(error.localizedDescription)")
-                } else {
-                    logger.log("✅ Portrait orientation enforced in CapturePrimaryView")
-                }
-            }
-            
-            // デバイス方向情報を強制更新
-            UIDevice.current.beginGeneratingDeviceOrientationNotifications()
-            
-            // 追加の縦画面固定処理
-            if let window = windowScene.windows.first {
-                window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
-            }
-        }
-    }
 }
 
 // MARK: - 50枚達成時の完了メッセージ
