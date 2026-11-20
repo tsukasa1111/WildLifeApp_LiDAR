@@ -90,7 +90,13 @@ struct FootprintMarker: View {
                     .animation(.easeInOut(duration: 0.2), value: isSelected)
             }
         }
-        .onTapGesture { onTap() }
+        .contentShape(Circle())
+        .onTapGesture(count: 2, perform: onDoubleTap)
+        .onTapGesture(perform: onTap)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("足跡 \(annotationIndex + 1)")
+        .accessibilityAction(named: "サイズを変更") { onDoubleTap() }
+        .accessibilityAction(named: "削除") { onRemove() }
         .onLongPressGesture { onRemove() }
     }
 }

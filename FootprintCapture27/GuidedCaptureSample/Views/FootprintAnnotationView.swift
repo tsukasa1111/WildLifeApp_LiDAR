@@ -13,6 +13,9 @@ struct FootprintAnnotationView: View {
     @Environment(\.dismiss) private var dismiss
     
     @State private var annotations: [FootprintAnnotation] = []
+    @State private var initialAnnotations: [FootprintAnnotation] = []
+    @State private var confirmDiscard = false
+    @State private var confirmReplace = false
     @State private var showingSaveConfirmation = false
     @State private var showingSaveError = false
     @State private var dragOffset: CGSize = .zero
@@ -30,17 +33,19 @@ struct FootprintAnnotationView: View {
     let captureImage: UIImage
     let captureFolderManager: CaptureFolderManager
     var sourceImageName: String? = nil
+    let legacySourceImageName: String?
     let onSaveComplete: (() -> Void)?
     
-    init(captureImage: UIImage, captureFolderManager: CaptureFolderManager, sourceImageName: String? = nil, onSaveComplete: (() -> Void)? = nil) {
+    init(captureImage: UIImage, captureFolderManager: CaptureFolderManager, sourceImageName: String? = nil, legacySourceImageName: String? = nil, onSaveComplete: (() -> Void)? = nil) {
         self.captureImage = captureImage
         self.captureFolderManager = captureFolderManager
         self.sourceImageName = sourceImageName
+        self.legacySourceImageName = legacySourceImageName
         self.onSaveComplete = onSaveComplete
     }
     
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ZStack {
                 annotationView
                 
@@ -110,12 +115,17 @@ struct FootprintAnnotationView: View {
             .toolbar {
                 AnnotationToolbarContent(
                     annotationsCount: annotations.count,
-                    onCancel: { dismiss() },
+                    onCancel: {
+                        if initialAnnotations == annotations { dismiss() }
+                        else { confirmDiscard = true }
+                    },
                     onSave: {
-                        if saveAnnotatedImage() {
-                            showingSaveConfirmation = true
+                        let saved = captureFolderManager.loadAnnotationMetadata()
+                        if let oldName = saved?.sourceImageName ?? legacySourceImageName, let sourceImageName,
+                           oldName != sourceImageName, saved?.annotations.isEmpty == false {
+                            confirmReplace = true
                         } else {
-                            showingSaveError = true
+                            saveChanges()
                         }
                     }
                 )
@@ -124,12 +134,20 @@ struct FootprintAnnotationView: View {
                     AnnotationControlPanel(
                         annotationCount: annotations.count,
                         onClearAll: clearAllAnnotations,
-                        selectedSize: $selectedFootprintSize,
-                        onSizeChanged: { newSize in
-                            // 新しいサイズで追加される足跡に影響
-                        }
+                        selectedSize: $selectedFootprintSize
                     )
                 }
+        }
+        .interactiveDismissDisabled(initialAnnotations != annotations)
+        .alert("変更を破棄しますか？", isPresented: $confirmDiscard) {
+            Button("編集を続ける", role: .cancel) {}
+            Button("破棄", role: .destructive) { dismiss() }
+        }
+        .alert("別の写真の印を置き換えますか？", isPresented: $confirmReplace) {
+            Button("キャンセル", role: .cancel) {}
+            Button("置き換えて保存", role: .destructive) { saveChanges() }
+        } message: {
+            Text("この記録でマーキングを保存できる写真は1枚です。")
         }
         .alert("保存完了", isPresented: $showingSaveConfirmation) {
             Button("OK") {
@@ -182,6 +200,7 @@ struct FootprintAnnotationView: View {
             
             // 既存のアノテーションを読み込む
             loadExistingAnnotations()
+            initialAnnotations = annotations
             
             logger.log("FootprintAnnotationView appeared with image: \(String(describing: captureImage.size)), existing annotations: \(annotations.count)")
         }
@@ -401,10 +420,20 @@ struct FootprintAnnotationView: View {
     }
     
     private func clearAllAnnotations() {
+        selectedAnnotation = nil
         annotations.removeAll()
         logger.log("Cleared all annotations")
     }
     
+    private func saveChanges() {
+        if saveAnnotatedImage() {
+            initialAnnotations = annotations
+            showingSaveConfirmation = true
+        } else {
+            showingSaveError = true
+        }
+    }
+
     private func saveAnnotatedImage() -> Bool {
         let originalImage = processedImage ?? captureImage
         let renderer = ImageRenderer(content: createAnnotatedImageView())
@@ -518,7 +547,7 @@ struct FootprintAnnotationView: View {
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             let existingMetadata = try decoder.decode(AnnotationMetadata.self, from: data)
-            if let savedImageName = existingMetadata.sourceImageName,
+            if let savedImageName = existingMetadata.sourceImageName ?? legacySourceImageName,
                let sourceImageName,
                savedImageName != sourceImageName {
                 annotations = []

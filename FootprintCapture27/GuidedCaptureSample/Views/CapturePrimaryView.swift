@@ -149,3 +149,86 @@ private struct GradientBackground: View {
     }
 }
 
+
+
+// The examples use local presentation state. A real capture session is only
+// created on supported hardware through AppDataModel.
+struct CaptureScreenPreview: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var stage: Stage = .ready
+    @State private var exampleCount = 47
+
+    private enum Stage: String, CaseIterable {
+        case ready = "開始前"
+        case scanning = "撮影中"
+        case complete = "完了"
+    }
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                Picker("撮影の段階", selection: $stage) {
+                    ForEach(Stage.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: stage) { _, next in
+                    if next == .scanning { exampleCount = 47 }
+                }
+
+                ZStack {
+                    Color.black
+                    if stage == .complete {
+                        CompletionMessageView()
+                    } else {
+                        VStack(spacing: 12) {
+                            if stage == .scanning {
+                                CaptureProgressBar(currentCount: exampleCount)
+                                    .accessibilityIdentifier("preview.progress")
+                            }
+                            Spacer(minLength: 0)
+                            if !reduceMotion, let url = Bundle.main.url(forResource: "ScanTutorial-iPhone-Area", withExtension: "mp4") {
+                                PlayerView(url: url, isInverted: false)
+                                    .aspectRatio(1.2, contentMode: .fit)
+                                    .accessibilityHidden(true)
+                            } else {
+                                Image(systemName: "viewfinder")
+                                    .font(.largeTitle)
+                                    .accessibilityHidden(true)
+                            }
+                            Spacer(minLength: 0)
+                            if stage == .ready {
+                                Button { stage = .scanning } label: { CaptureStartLabel(title: "撮影開始") }
+                            } else {
+                                HStack {
+                                    Spacer()
+                                    ManualShotButton(isEnabled: true) {
+                                        exampleCount += 1
+                                        if exampleCount == 50 { stage = .complete }
+                                    }
+                                    .accessibilityHint("見本の枚数が1枚増えます")
+                                }
+                            }
+                        }
+                        .padding()
+                    }
+                }
+                .foregroundStyle(.white)
+                .environment(\.colorScheme, .dark)
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                Text("撮影画面の表示例です。写真や位置情報は記録されません。")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            .padding()
+            .navigationTitle("撮影画面の見本")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("閉じる") { dismiss() }
+                }
+            }
+        }
+    }
+}

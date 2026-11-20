@@ -56,7 +56,7 @@ enum FootprintSize: String, CaseIterable, Codable {
 
 // MARK: - Footprint Model
 
-struct FootprintAnnotation: Identifiable, Codable {
+struct FootprintAnnotation: Identifiable, Codable, Equatable {
     let id: UUID
     var position: CGPoint // 正規化座標 (0..1)
     var size: FootprintSize

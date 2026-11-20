@@ -2,178 +2,132 @@ import SwiftUI
 
 struct GC_FootprintConfirmationView: View {
     let availableImages: [URL]
-    @State private var selectedImageIndex: Int
     let captureFolderManager: CaptureFolderManager
     let onDismiss: () -> Void
-    
-    @State private var currentImage: UIImage?
-    @State private var annotatedImage: UIImage?
-    @State private var isLoadingImage = false
+
+    private let initialImageName: String?
+    @State private var selectedImageIndex: Int
+    @State private var loadedURL: URL?
+    @State private var originalImage: UIImage?
+    @State private var markedImage: UIImage?
+    @State private var markedSourceName: String?
+    @State private var showOriginal = false
     @State private var showImageSelector = false
     @State private var showFootprintEditor = false
-    @State private var userHasSelectedImage = false
-    
+
     init(availableImages: [URL], initialSelectedIndex: Int, captureFolderManager: CaptureFolderManager, onDismiss: @escaping () -> Void) {
         self.availableImages = availableImages
         self.captureFolderManager = captureFolderManager
         self.onDismiss = onDismiss
-        let savedImageName = captureFolderManager.loadAnnotationMetadata()?.sourceImageName
-        let preferredIndex = availableImages.firstIndex { $0.lastPathComponent == savedImageName } ?? initialSelectedIndex
-        self._selectedImageIndex = State(initialValue: max(0, min(preferredIndex, availableImages.count - 1)))
+        let savedName = captureFolderManager.loadAnnotationMetadata()?.sourceImageName
+        let index = availableImages.firstIndex { $0.lastPathComponent == savedName }
+            ?? max(0, min(initialSelectedIndex, availableImages.count - 1))
+        _selectedImageIndex = State(initialValue: index)
+        initialImageName = availableImages.indices.contains(index) ? availableImages[index].lastPathComponent : nil
     }
-    
+
+    private var selectedURL: URL? {
+        availableImages.indices.contains(selectedImageIndex) ? availableImages[selectedImageIndex] : nil
+    }
+
+    private var hasMarkupForSelection: Bool {
+        markedImage != nil && selectedURL?.lastPathComponent == markedSourceName
+    }
+
+    private var showsMarkedImage: Bool { hasMarkupForSelection && !showOriginal }
+
     var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                if let displayImage = userHasSelectedImage ? currentImage : (annotatedImage ?? currentImage) {
-                    GeometryReader { geometry in
-                        ScrollView([.horizontal, .vertical]) {
-                            Image(uiImage: displayImage)
-                                .resizable()
-                                .scaledToFit()
-                                .frame(maxWidth: geometry.size.width - 32, maxHeight: geometry.size.height - 32)
-                                .padding(16)
-                        }
-                        .background(Color.black)
+        NavigationStack {
+            VStack(spacing: 12) {
+                ZStack {
+                    Color.black
+                    if let image = showsMarkedImage ? markedImage : (loadedURL == selectedURL ? originalImage : nil) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .accessibilityLabel(showsMarkedImage ? "印を保存した写真" : "撮影した写真")
+                            .accessibilityIdentifier(showsMarkedImage ? "photo.marked" : "photo.original")
+                    } else if loadedURL != selectedURL {
+                        ProgressView().tint(.white)
+                    } else {
+                        ContentUnavailableView("写真を開けませんでした", systemImage: "photo")
+                            .environment(\.colorScheme, .dark)
                     }
-                } else if isLoadingImage {
-                    VStack {
-                        ProgressView()
-                        Text("画像を読み込み中...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    VStack {
-                        Image(systemName: "photo.badge.exclamationmark")
-                            .font(.system(size: 60))
-                            .foregroundColor(.orange)
-                        Text("画像の読み込みに失敗しました")
-                            .font(.headline)
-                    }
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                
-                VStack(spacing: 12) {
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                VStack(alignment: .leading, spacing: 12) {
                     HStack {
-                        Text("使用する画像:")
-                            .font(.headline)
+                        Text("写真 \(availableImages.isEmpty ? 0 : selectedImageIndex + 1) / \(availableImages.count)")
+                            .font(.headline.monospacedDigit())
                         Spacer()
-                        Text(availableImages.isEmpty ? "画像なし" : "\(selectedImageIndex + 1)枚目")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    HStack(spacing: 16) {
-                        Button("画像を選択") {
-                            showImageSelector = true
+                        if hasMarkupForSelection {
+                            Picker("写真の表示", selection: $showOriginal) {
+                                Text("印つき").tag(false)
+                                Text("元の写真").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 180)
+                        } else {
+                            Text("元の写真")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
-                        .disabled(availableImages.isEmpty)
-                        
+                    }
+                    HStack {
+                        Button("画像を選択") { showImageSelector = true }
+                            .buttonStyle(.bordered)
+                            .disabled(availableImages.isEmpty)
                         Spacer()
-                        
-                        Button("足跡を編集") {
-                            showFootprintEditor = true
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.green)
-                        .disabled(currentImage == nil)
+                        Button("足跡を編集") { showFootprintEditor = true }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(originalImage == nil || loadedURL != selectedURL)
                     }
+                    .controlSize(.large)
                 }
                 .padding(.horizontal)
-                .padding(.bottom)
+                .padding(.bottom, 8)
             }
             .navigationTitle("足跡画像確認")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                SwiftUI.ToolbarItem(placement: .navigationBarLeading) {
-                    Button("閉じる") { onDismiss() }
-                }
-                SwiftUI.ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("更新") { checkForAnnotatedImage() }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("閉じる", action: onDismiss)
                 }
             }
-        }
-        .onAppear {
-            checkForAnnotatedImage()
-            loadSelectedImage()
-        }
-        .onChange(of: selectedImageIndex) { _, _ in
-            loadSelectedImage()
-        }
-        .sheet(isPresented: $showImageSelector) {
-            GC_CustomImageSelectorView(
-                availableImages: availableImages,
-                selectedIndex: $selectedImageIndex,
-                onSelectionChanged: { index in
-                    selectedImageIndex = index
-                    userHasSelectedImage = true
-                    showImageSelector = false
-                },
-                onConfirm: { index in
-                    selectedImageIndex = index
-                    userHasSelectedImage = true
-                    showImageSelector = false
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                        showFootprintEditor = true
-                    }
+            .sheet(isPresented: $showImageSelector) {
+                ImageSelectorView(availableImages: availableImages, selectedIndex: $selectedImageIndex)
+            }
+            .sheet(isPresented: $showFootprintEditor) {
+                if let originalImage, let selectedURL, loadedURL == selectedURL {
+                    FootprintAnnotationView(captureImage: originalImage, captureFolderManager: captureFolderManager,
+                                           sourceImageName: selectedURL.lastPathComponent,
+                                           legacySourceImageName: initialImageName, onSaveComplete: reloadMarkup)
                 }
-            )
-        }
-        .sheet(isPresented: $showFootprintEditor) {
-            if let currentImage = currentImage {
-                FootprintAnnotationView(
-                    captureImage: currentImage,
-                    captureFolderManager: captureFolderManager,
-                    sourceImageName: availableImages.indices.contains(selectedImageIndex)
-                        ? availableImages[selectedImageIndex].lastPathComponent : nil,
-                    onSaveComplete: { checkForAnnotatedImage() }
-                )
-                .onDisappear { checkForAnnotatedImage() }
             }
         }
-    }
-    
-    private func loadSelectedImage() {
-        guard availableImages.indices.contains(selectedImageIndex) else {
-            currentImage = nil
-            isLoadingImage = false
-            return
-        }
-        isLoadingImage = true
-        currentImage = nil
-        let requestedIndex = selectedImageIndex
-        let imageURL = availableImages[selectedImageIndex]
-        Task {
-            let image = await loadImage(from: imageURL)
-            await MainActor.run {
-                guard self.selectedImageIndex == requestedIndex else { return }
-                self.currentImage = image
-                self.isLoadingImage = false
-            }
+        .onAppear { reloadMarkup() }
+        .onChange(of: selectedURL) { _, _ in showOriginal = false }
+        .task(id: selectedURL) {
+            guard let url = selectedURL else { return }
+            let image = await Self.readImage(url)
+            guard !Task.isCancelled && selectedURL == url else { return }
+            originalImage = image
+            loadedURL = url
         }
     }
-    
-    private func loadImage(from url: URL) async -> UIImage? {
-        do {
-            let data = try Data(contentsOf: url)
-            return UIImage(data: data)
-        } catch {
-            return nil
-        }
+
+    private nonisolated static func readImage(_ url: URL) async -> UIImage? {
+        UIImage(contentsOfFile: url.path)
     }
-    
-    private func checkForAnnotatedImage() {
-        let annotatedImageURL = captureFolderManager.captureFolder.appendingPathComponent("annotated_footprints.jpg")
-        annotatedImage = nil
-        if FileManager.default.fileExists(atPath: annotatedImageURL.path) {
-            if let imageData = try? Data(contentsOf: annotatedImageURL),
-               let image = UIImage(data: imageData) {
-                annotatedImage = image
-            }
-        }
+
+    private func reloadMarkup() {
+        showOriginal = false
+        let url = captureFolderManager.captureFolder.appendingPathComponent(CaptureFolderManager.annotatedImageFileName)
+        markedImage = UIImage(contentsOfFile: url.path)
+        // Earlier recordings didn't store a source name. Keep their existing initial preview.
+        let metadata = captureFolderManager.loadAnnotationMetadata()
+        markedSourceName = metadata?.sourceImageName ?? initialImageName
+        if metadata?.annotations.isEmpty == true { markedImage = nil }
     }
 }

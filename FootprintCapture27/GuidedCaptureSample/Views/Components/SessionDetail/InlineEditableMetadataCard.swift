@@ -1,10 +1,11 @@
 import SwiftUI
 
-struct InlineEditableMetadataCard: View {
-    @Binding var traceMetadata: TraceMetadata?
-    let onSave: (TraceMetadata) -> Void
+struct MetadataEditor: View {
+    let original: TraceMetadata
+    let onSave: (TraceMetadata) throws -> Void
     let onCancel: () -> Void
 
+    @State private var saveError: String?
     @State private var hasFootprint: Bool
     @State private var animalType: String
     @State private var otherAnimal: String = ""
@@ -18,120 +19,81 @@ struct InlineEditableMetadataCard: View {
     let weatherOptions = ["晴れ", "曇り", "雨", "雪", "霧", "その他"]
     let substrateOptions = ["硬い", "普通", "柔らかい"]
 
-    init(metadata: Binding<TraceMetadata?>, onSave: @escaping (TraceMetadata) -> Void, onCancel: @escaping () -> Void) {
-        let recognizedAnimals = ["イノシシ", "シカ"]
-        self._traceMetadata = metadata
+    init(metadata: TraceMetadata, onSave: @escaping (TraceMetadata) throws -> Void, onCancel: @escaping () -> Void) {
+        let recognized = ["イノシシ", "シカ"].contains(metadata.animalType)
+        original = metadata
         self.onSave = onSave
         self.onCancel = onCancel
-
-        if let m = metadata.wrappedValue {
-            self._hasFootprint = State(initialValue: m.hasFootprint)
-            self._animalType = State(initialValue: recognizedAnimals.contains(m.animalType) ? m.animalType : "その他")
-            self._otherAnimal = State(initialValue: recognizedAnimals.contains(m.animalType) ? "" : m.animalType)
-            self._traceType = State(initialValue: m.traceType)
-            self._weather = State(initialValue: m.weather ?? "未記録")
-            self._substrate = State(initialValue: m.substrate ?? "未記録")
-            self._notes = State(initialValue: m.notes ?? "")
-        } else {
-            self._hasFootprint = State(initialValue: true)
-            self._animalType = State(initialValue: "イノシシ")
-            self._otherAnimal = State(initialValue: "")
-            self._traceType = State(initialValue: "足跡")
-            self._weather = State(initialValue: "未記録")
-            self._substrate = State(initialValue: "未記録")
-            self._notes = State(initialValue: "")
-        }
+        _hasFootprint = State(initialValue: metadata.hasFootprint)
+        _animalType = State(initialValue: recognized ? metadata.animalType : "その他")
+        _otherAnimal = State(initialValue: recognized ? "" : metadata.animalType)
+        _traceType = State(initialValue: metadata.traceType)
+        _weather = State(initialValue: metadata.weather ?? "未記録")
+        _substrate = State(initialValue: metadata.substrate ?? "未記録")
+        _notes = State(initialValue: metadata.notes ?? "")
     }
 
     var body: some View {
-        VStack(spacing: 20) {
-            // Header
-            VStack(spacing: 8) {
-                HStack {
-                    Image(systemName: "square.and.pencil").font(.title2).foregroundColor(.blue)
-                    Text("痕跡の詳細情報を入力").font(.headline).fontWeight(.semibold)
-                    Spacer()
-                }
-                Text("発見した動物痕跡の詳細を記録してください").font(.subheadline).foregroundColor(.secondary).frame(maxWidth: .infinity, alignment: .leading)
-            }
-
-            VStack(spacing: 16) {
-                // 足跡有無
-                MetadataEditRow(icon: "pawprint.fill", title: "足跡の有無", color: .orange) {
-                    HStack(spacing: 20) {
-                        Toggle("足跡あり", isOn: $hasFootprint).toggleStyle(.switch)
+        NavigationStack {
+            Form {
+                SwiftUI.Section("調査結果") {
+                    Picker("足跡の有無", selection: $hasFootprint) {
+                        Text("足跡あり").tag(true)
+                        Text("足跡なし").tag(false)
+                    }
+                    .pickerStyle(.segmented)
+                    if hasFootprint {
+                        Picker("動物の種類", selection: $animalType) {
+                            ForEach(animalTypes, id: \.self) { Text($0) }
+                        }
+                        .accessibilityIdentifier("editor.animal")
+                        if animalType == "その他" {
+                            TextField("動物名", text: $otherAnimal)
+                        }
+                        Picker("痕跡の種類", selection: $traceType) {
+                            options(traceTypes, including: traceType)
+                        }
                     }
                 }
-
-                // 動物の種類
-                if hasFootprint {
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("動物の種類", systemImage: "hare.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.blue)
-                    Picker("動物の種類", selection: $animalType) { ForEach(animalTypes, id: \.self) { Text($0).tag($0) } }
-                        .pickerStyle(.segmented)
-                    if animalType == "その他" { TextField("動物名を入力してください", text: $otherAnimal).textFieldStyle(.roundedBorder) }
-                }
-                .padding()
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(12)
-                }
-
-                // 痕跡の種類
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("痕跡の種類", systemImage: "pawprint.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.green)
-                    Picker("痕跡の種類", selection: $traceType) { ForEach(traceTypes, id: \.self) { Text($0).tag($0) } }
-                        .pickerStyle(.menu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .padding()
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(12)
-
-                // 天候
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("天候", systemImage: "cloud.sun.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.orange)
+                SwiftUI.Section("環境") {
                     Picker("天候", selection: $weather) {
-                        ForEach(["未記録"] + weatherOptions + (weatherOptions.contains(weather) || weather == "未記録" ? [] : [weather]), id: \.self) { Text($0).tag($0) }
+                        options(["未記録"] + weatherOptions, including: weather)
                     }
-                        .pickerStyle(.menu)
-                }
-                .padding()
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(12)
-
-                // 地面の柔らかさ
-                VStack(alignment: .leading, spacing: 8) {
-                    Label("地面の柔らかさ", systemImage: "hand.point.down.fill").font(.subheadline).fontWeight(.medium).foregroundColor(.brown)
                     Picker("地面の柔らかさ", selection: $substrate) {
-                        ForEach(["未記録"] + substrateOptions + (substrateOptions.contains(substrate) || substrate == "未記録" ? [] : [substrate]), id: \.self) { Text($0).tag($0) }
+                        options(["未記録"] + substrateOptions, including: substrate)
                     }
-                        .pickerStyle(.wheel).frame(height: 120)
                 }
-                .padding()
-                .background(Color(UIColor.secondarySystemBackground))
-                .cornerRadius(12)
-
-                // 備考
-                MetadataEditRow(icon: "note.text", title: "備考", color: .gray) {
-                    TextEditor(text: $notes).frame(minHeight: 80).overlay(RoundedRectangle(cornerRadius: 8).stroke(Color(UIColor.systemGray4)))
-                }
-
-                HStack {
-                    Button("キャンセル", action: onCancel)
-                    Spacer()
-                    Button("保存") { onSave(composeMetadata()) }
-                        .buttonStyle(.borderedProminent)
-                        .disabled(hasFootprint && animalType == "その他" && otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                SwiftUI.Section("メモ") {
+                    TextField("観察したこと", text: $notes, axis: .vertical)
+                        .lineLimit(2...8)
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
+            .navigationTitle("記録の編集")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("キャンセル", action: onCancel) }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("保存") {
+                        do { try onSave(composeMetadata()) }
+                        catch { saveError = error.localizedDescription }
+                    }
+                    .disabled(hasFootprint && animalType == "その他" && otherAnimal.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .alert("詳細情報を保存できませんでした", isPresented: Binding(
+                get: { saveError != nil }, set: { if !$0 { saveError = nil } }
+            )) {
+                Button("OK", role: .cancel) {}
+            } message: { Text(saveError ?? "") }
+            .onChange(of: hasFootprint) { _, present in
+                traceType = present ? "足跡" : "調査地点"
+            }
         }
-        .padding(20)
-        .background(Color(UIColor.secondarySystemBackground))
-        .cornerRadius(16)
-        .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 4)
-        .onChange(of: hasFootprint) { _, newValue in
-            traceType = newValue ? "足跡" : "調査地点"
-        }
+    }
+
+    private func options(_ values: [String], including current: String) -> some View {
+        ForEach(values.contains(current) ? values : values + [current], id: \.self) { Text($0) }
     }
 
     private func composeMetadata() -> TraceMetadata {
@@ -143,9 +105,9 @@ struct InlineEditableMetadataCard: View {
             weather: weather == "未記録" ? nil : weather,
             substrate: substrate == "未記録" ? nil : substrate,
             notes: notes.isEmpty ? nil : notes,
-            location: traceMetadata?.location,
-            timestamp: traceMetadata?.timestamp ?? Date(),
-            id: traceMetadata?.id ?? UUID()
+            location: original.location,
+            timestamp: original.timestamp,
+            id: original.id
         )
     }
 }

@@ -3,12 +3,10 @@ import ImageIO
 
 struct GC_GalleryView: View {
     @EnvironmentObject var appModel: AppDataModel
-    @Binding var showCaptureFolders: Bool
-    var showsCloseButton = true
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var gridLayout: GridLayout = UIDevice.current.userInterfaceIdiom == .pad ? .three : .two
 
     // Filters and sort
-    @State private var showFilterMenu = false
     @State private var animalFilter: AnimalFilter = .all
     @State private var footprintFilter: FootprintFilter = .all
     @State private var sortOrder: SortOrder = .newest
@@ -19,14 +17,7 @@ struct GC_GalleryView: View {
         case wildBoar = "イノシシ"
         case other = "その他"
 
-        var icon: String {
-            switch self {
-            case .all: return "すべて"
-            case .deer: return "🦌"
-            case .wildBoar: return "🐗"
-            case .other: return "❓"
-            }
-        }
+
     }
 
     enum FootprintFilter: String, CaseIterable {
@@ -39,7 +30,7 @@ struct GC_GalleryView: View {
         case newest = "新しい順"
         case oldest = "古い順"
         case animalType = "動物種別"
-        case hasModel = "3Dモデルあり"
+        case hasModel = "3Dモデルを優先"
     }
 
     enum GridLayout: CaseIterable {
@@ -63,101 +54,112 @@ struct GC_GalleryView: View {
     }
 
     var body: some View {
+        let folders = captureFoldersWithImages ?? []
+        let matches = filteredAndSortedURLs(folders)
         VStack(spacing: 0) {
-            // Batch Processing Status Banner (external component)
             if appModel.batchProcessingStatus != .idle {
-                BatchProcessingStatusBanner()
-                    .padding(.horizontal)
-                    .padding(.bottom, 8)
+                BatchProcessingStatusBanner().padding(.horizontal)
             }
-
-            if let filtered = filteredAndSortedURLs, !filtered.isEmpty {
-                galleryGridView(for: filtered)
-            } else {
-                EmptyGalleryView(
-                    hasCaptures: !(captureFoldersWithImages?.isEmpty ?? true),
-                    canCapture: appModel.cameraUnavailableMessage.isEmpty
-                )
-            }
-
-            if showsCloseButton {
-                Button("閉じる") {
-                    withAnimation(.easeInOut(duration: 0.3)) { showCaptureFolders = false }
+            if !folders.isEmpty {
+                HStack {
+                    Text(hasActiveFilters ? "全\(folders.count)件中 \(matches.count)件" : "全\(folders.count)件")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    displayOptions
                 }
-                .padding(12)
-            }
-        }
-    }
-
-    @ViewBuilder
-    func galleryGridView(for urls: [URL]) -> some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(urls, id: \.self) { url in
-                    ThumbnailView(captureFolderURL: url, frameSize: itemSize)
-                        .id(url.path)
-                }
-            }
-            .padding(.horizontal)
-            .padding(.bottom, 12)
-
-            footerControls
                 .padding(.horizontal)
-                .padding(.vertical, 12)
-        }
-    }
-
-    private var footerControls: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Menu {
-                    Picker("列数", selection: $gridLayout) {
-                        ForEach(GridLayout.allCases, id: \.self) { layout in
-                            Text(layout.displayName).tag(layout)
-                        }
-                    }
-                } label: {
-                    Label(gridLayout.displayName, systemImage: "rectangle.grid.2x2")
+                if hasActiveFilters {
+                    Text([animalFilter == .all ? nil : animalFilter.rawValue,
+                          footprintFilter == .all ? nil : footprintFilter.rawValue]
+                        .compactMap { $0 }.joined(separator: "・"))
+                        .font(.subheadline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.bottom, 8)
                 }
-
-                Spacer()
-
-                Menu {
-                    Picker("動物フィルタ", selection: $animalFilter) {
-                        ForEach(AnimalFilter.allCases, id: \.self) { filter in
-                            Text(filter.rawValue).tag(filter)
-                        }
-                    }
-                    Picker("足跡フィルタ", selection: $footprintFilter) {
-                        ForEach(FootprintFilter.allCases, id: \.self) { filter in
-                            Text(filter.rawValue).tag(filter)
-                        }
-                    }
-                    Picker("ソート", selection: $sortOrder) {
-                        ForEach(SortOrder.allCases, id: \.self) { order in
-                            Text(order.rawValue).tag(order)
-                        }
-                    }
-                } label: {
-                    Label("表示設定", systemImage: "line.3.horizontal.decrease.circle")
-                }
+                Divider()
             }
 
+            if !matches.isEmpty {
+                ScrollView {
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 16) {
+                        ForEach(matches, id: \.self) { url in
+                            ThumbnailView(captureFolderURL: url)
+                        }
+                    }
+                    .padding(16)
+                }
+            } else if hasActiveFilters {
+                ContentUnavailableView {
+                    Label("条件に合う記録がありません", systemImage: "line.3.horizontal.decrease.circle")
+                } actions: {
+                    Button("絞り込みを解除") {
+                        animalFilter = .all
+                        footprintFilter = .all
+                    }
+                    .buttonStyle(.bordered)
+                }
+            } else {
+                ContentUnavailableView {
+                    Label("まだ記録がありません", systemImage: "pawprint")
+                } description: {
+                    Text(appModel.cameraUnavailableMessage.isEmpty
+                         ? "撮影した足跡や調査地点がここに並びます。"
+                         : "対応する実機で撮影した記録がここに並びます。")
+                }
+            }
         }
+        .background(Color(uiColor: .systemGroupedBackground))
     }
 
-    // MARK: - Computed
-    var columns: [GridItem] {
-        Array(repeating: GridItem(.flexible(), spacing: 12), count: gridLayout.columnCount)
+    private var displayOptions: some View {
+        Menu {
+            Menu("動物の種類") {
+                Picker("動物の種類", selection: $animalFilter) {
+                    ForEach(AnimalFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+            }
+            Menu("足跡の有無") {
+                Picker("足跡の有無", selection: $footprintFilter) {
+                    ForEach(FootprintFilter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+            }
+            Menu("並べ替え") {
+                Picker("並べ替え", selection: $sortOrder) {
+                    ForEach(SortOrder.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                }
+                .pickerStyle(.inline)
+            }
+            if !dynamicTypeSize.isAccessibilitySize {
+                Menu("列数") {
+                    Picker("列数", selection: $gridLayout) {
+                        ForEach(GridLayout.allCases, id: \.self) { Text($0.displayName).tag($0) }
+                    }
+                    .pickerStyle(.inline)
+                }
+            }
+        } label: {
+            Label("表示設定", systemImage: hasActiveFilters
+                  ? "line.3.horizontal.decrease.circle.fill" : "line.3.horizontal.decrease.circle")
+                .font(.subheadline.weight(.medium))
+                .frame(minHeight: 44)
+        }
+        .accessibilityIdentifier("gallery.options")
     }
 
-    var hasActiveFilters: Bool {
-        animalFilter != .all || footprintFilter != .all || sortOrder != .newest
+    private var columns: [GridItem] {
+        let count = dynamicTypeSize.isAccessibilitySize ? 1 : gridLayout.columnCount
+        return Array(repeating: GridItem(.flexible(minimum: 0), spacing: 12, alignment: .top), count: count)
     }
 
-    var filteredAndSortedURLs: [URL]? {
-        guard let urls = captureFoldersWithImages else { return nil }
+    private var hasActiveFilters: Bool {
+        animalFilter != .all || footprintFilter != .all
+    }
 
+    private func filteredAndSortedURLs(_ urls: [URL]) -> [URL] {
         // filter
         let filtered = urls.filter { url in
             guard let metadata = loadMetadata(from: url) else {
@@ -199,26 +201,6 @@ struct GC_GalleryView: View {
                 if m1 != m2 { return m1 && !m2 }
                 return url1.path > url2.path
             }
-        }
-    }
-
-    var itemSize: CGSize {
-        let screenWidth = UIScreen.main.bounds.width
-        let padding: CGFloat = 40
-        let spacing: CGFloat = 12
-        let count = gridLayout.columnCount
-        let availableWidth = screenWidth - padding - (spacing * CGFloat(count - 1))
-        let itemWidth = availableWidth / CGFloat(count)
-        return CGSize(width: itemWidth, height: itemWidth + 70)
-    }
-
-    var navigationTitle: String {
-        guard let total = captureFoldersWithImages?.count else { return LocalizedString.captures }
-        let filtered = filteredAndSortedURLs?.count ?? 0
-        if hasActiveFilters && filtered != total {
-            return "\(LocalizedString.captures) (\(filtered)/\(total))"
-        } else {
-            return "\(LocalizedString.captures) (\(total)件)"
         }
     }
 
@@ -271,73 +253,11 @@ struct GC_GalleryView: View {
         return (try? FileManager.default.contentsOfDirectory(at: modelsFolder, includingPropertiesForKeys: nil))?.contains { $0.pathExtension.lowercased() == "usdz" } ?? false
     }
 
-    private struct LocalizedString {
-        static let captures = NSLocalizedString(
-            "Captures (Object Capture)",
-            bundle: Bundle.main,
-            value: "キャプチャ一覧",
-            comment: "Title for the folder view.")
-    }
-}
-
-private struct EmptyGalleryView: View {
-    let hasCaptures: Bool
-    let canCapture: Bool
-
-    var body: some View {
-        VStack(spacing: 32) {
-            Spacer()
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(colors: [Color.blue.opacity(0.1), Color.green.opacity(0.05)], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .frame(width: 140, height: 140)
-                VStack(spacing: 8) {
-                    Image(systemName: "camera.circle")
-                        .font(.system(size: 64, weight: .light))
-                        .foregroundStyle(LinearGradient(colors: [.blue, .green], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    Image(systemName: "pawprint.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.orange.opacity(0.7))
-                        .offset(x: 20, y: -10)
-                }
-            }
-            VStack(spacing: 12) {
-                Text(hasCaptures ? "条件に合うキャプチャはありません" : "まだキャプチャがありません")
-                    .font(.title2).fontWeight(.semibold)
-                VStack(spacing: 8) {
-                    if hasCaptures {
-                        Text("表示設定を変更して確認してください")
-                    } else if canCapture {
-                        Text("動物の痕跡を撮影して記録を開始しましょう")
-                    } else {
-                        Text("対応する実機で撮影すると、ここに記録が表示されます")
-                    }
-                }
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-            }
-            if canCapture && !hasCaptures {
-                HStack(spacing: 12) {
-                    Image(systemName: "lightbulb.fill").font(.system(size: 16, weight: .medium)).foregroundColor(.yellow)
-                    Text("明るい環境で撮影すると質が上がります").font(.subheadline)
-                    Spacer()
-                }
-                .padding(12)
-                .background(RoundedRectangle(cornerRadius: 12).fill(Color.yellow.opacity(0.1)))
-                .padding(.horizontal)
-            }
-            Spacer()
-        }
-        .padding(.bottom, 24)
-    }
 }
 
 private struct ThumbnailView: View {
     @EnvironmentObject var appModel: AppDataModel
     let captureFolderURL: URL
-    let frameSize: CGSize
     @State private var thumbnail: CGImage?
     @State private var showSessionDetail = false
     @State private var refreshID = 0
@@ -346,32 +266,31 @@ private struct ThumbnailView: View {
         Button {
             showSessionDetail = true
         } label: {
-            VStack(spacing: 8) {
-                ZStack(alignment: .topTrailing) {
-                    thumbnailImage
-                    statusBadge.id(refreshID)
-                }
-                .frame(width: frameSize.width, height: frameSize.width)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .contentShape(RoundedRectangle(cornerRadius: 12))
-                .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.gray.opacity(0.2), lineWidth: 1))
-                .shadow(color: .black.opacity(0.1), radius: 6, x: 0, y: 3)
+            VStack(alignment: .leading, spacing: 0) {
+                Rectangle()
+                    .fill(.quaternary)
+                    .aspectRatio(1.25, contentMode: .fit)
+                    .overlay { thumbnailImage }
+                    .clipped()
+                    .overlay(alignment: .topTrailing) { statusBadge.id(refreshID) }
 
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(animalTypeText)
+                        .font(.headline)
                     Text(displayDate)
-                        .font(.subheadline)
-                        .lineLimit(1)
-                        .foregroundColor(.primary)
-                    HStack(spacing: 6) {
-                        Image(systemName: "pawprint.fill").font(.system(size: 10)).foregroundColor(.orange)
-                        Text(animalTypeText).font(.caption).foregroundColor(.secondary).lineLimit(1)
-                        Spacer()
-                    }
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(width: frameSize.width)
+                .padding(10)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemGroupedBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 14))
+            .contentShape(RoundedRectangle(cornerRadius: 14))
         }
         .buttonStyle(.plain)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("gallery.record.\(captureFolderURL.lastPathComponent)")
         .sheet(isPresented: $showSessionDetail, onDismiss: { refreshID += 1 }) {
             SessionDetailView(
                 captureFolderURL: captureFolderURL,
@@ -430,7 +349,7 @@ private struct ThumbnailView: View {
         if let md = loadMetadata(from: captureFolderURL) {
             return md.hasFootprint ? md.animalType : "足跡なし"
         }
-        return "-"
+        return "動物未記録"
     }
 
     private func loadMetadata(from url: URL) -> TraceMetadata? {
@@ -440,13 +359,13 @@ private struct ThumbnailView: View {
     }
 
     private var statusBadge: some View {
-        Group {
-            if hasModel(in: captureFolderURL) {
-                Text("3D").font(.caption2).padding(6).background(Capsule().fill(Color.green.opacity(0.2))).overlay(Capsule().stroke(Color.green.opacity(0.4))).padding(6)
-            } else {
-                Text("写真").font(.caption2).padding(6).background(Capsule().fill(Color.blue.opacity(0.2))).padding(6)
-            }
-        }
+        Text(hasModel(in: captureFolderURL) ? "3D" : "写真")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.75), in: Capsule())
+            .padding(6)
     }
 
     private func hasModel(in url: URL) -> Bool {

@@ -35,17 +35,7 @@ struct PrimaryView: View {
             Text(appModel.cameraUnavailableMessage)
         }
         .sheet(isPresented: $appModel.showReadOnlyGallery) {
-            let binding = Binding<Bool>(
-                get: { true },
-                set: { newVal in if newVal == false { appModel.showReadOnlyGallery = false } }
-            )
-            NavigationView {
-                GC_GalleryView(showCaptureFolders: binding)
-                    .navigationTitle("キャプチャ一覧")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .navigationBarTrailing) { Button("閉じる") { appModel.showReadOnlyGallery = false } } }
-            }
-            .environmentObject(appModel)
+            GalleryStandaloneView()
         }
         .onChange(of: appModel.state) { _, newState in
             showReconstructionView = newState == .reconstructing || newState == .viewing
@@ -115,22 +105,31 @@ private func isCameraUnavailable() -> Bool {
 
 private struct ReadOnlyGalleryContainer: View {
     @EnvironmentObject var appModel: AppDataModel
-    @State private var show: Bool = true
+
+    @State private var showPreview = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: 0) {
                 if !appModel.cameraUnavailableMessage.isEmpty {
-                    Text(appModel.cameraUnavailableMessage)
-                        .font(.subheadline)
+                    Label(appModel.cameraUnavailableMessage, systemImage: "camera.fill")
+                        .font(.footnote)
                         .foregroundColor(.secondary)
-                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
                 }
-                GC_GalleryView(showCaptureFolders: $show, showsCloseButton: false)
+                GC_GalleryView()
             }
             .navigationTitle("キャプチャ一覧")
             .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showPreview) { CaptureScreenPreview() }
             .toolbar {
+                if !ObjectCaptureSession.isSupported {
+                    ToolbarItem(placement: .primaryAction) {
+                        Button("撮影画面の見本") { showPreview = true }
+                    }
+                }
                 if ObjectCaptureSession.isSupported {
                     ToolbarItem(placement: .navigationBarTrailing) {
                         Button("撮影を開始") { appModel.createNewCaptureSession() }

@@ -9,7 +9,7 @@ struct TopOverlayActionBarLeft: View {
     var showCaptureFolderButton: Bool
 
     private var buttonHeight: CGFloat {
-        UIDevice.current.userInterfaceIdiom == .pad ? 42 : 34
+        44
     }
 
     private var buttonBorder: LinearGradient {
@@ -70,6 +70,7 @@ struct TopOverlayActionBarLeft: View {
                         .shadow(color: .black.opacity(0.35), radius: 8, x: 0, y: 4)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("キャプチャ一覧")
             }
         }
         .frame(maxWidth: .infinity, alignment: .top)
