@@ -37,6 +37,7 @@ jobs:
           FIXTURE_FOLDER="$DATA_CONTAINER/Documents/$(date -u '+%Y-%m-%dT%H:%M:%SZ')-ci-fixture"
           mkdir -p "$FIXTURE_FOLDER/Images"
           cp "FootprintCapture27/GuidedCaptureSample/Assets.xcassets/AppIcon.appiconset/appstore.png" "$FIXTURE_FOLDER/Images/IMG_0001.png"
+          sips -f horizontal "$FIXTURE_FOLDER/Images/IMG_0001.png" --out "$FIXTURE_FOLDER/Images/IMG_0002.png"
           cat > "$FIXTURE_FOLDER/metadata.json" <<'JSON'
           {"animalType":"シカ","hasFootprint":true,"traceType":"足跡","timestamp":1794911460}
           JSON
@@ -49,6 +50,21 @@ jobs:
             -scheme GuidedCaptureSample -destination "platform=iOS Simulator,id=$SIMULATOR_ID" \
             -derivedDataPath "$RUNNER_TEMP/DerivedData" -parallel-testing-enabled NO \
             -resultBundlePath "$RUNNER_TEMP/Gallery.xcresult" -only-testing:GalleryUITests test-without-building
+          # The UI test placed two large marks at quarter-width on a square fixture.
+          DATA_CONTAINER=$(xcrun simctl get_app_container "$SIMULATOR_ID" "$BUNDLE_ID" data)
+          python3 - "$DATA_CONTAINER/Documents/${FIXTURE_FOLDER##*/}" <<'PYTHON'
+          import json, pathlib, sys
+          folder = pathlib.Path(sys.argv[1])
+          saved = json.loads((folder / "footprint_annotations.json").read_text())
+          assert saved["sourceImageName"] == "IMG_0001.png", saved
+          marks = saved["annotations"]
+          assert len(marks) == 2 and len({m["id"] for m in marks}) == 2
+          for mark, x in zip(marks, (0.25, 0.75)):
+              px, py = mark["position"]
+              assert abs(px - x) < 0.03 and abs(py - 0.5) < 0.03, mark
+              assert abs(mark["scaleMultiplier"] - 1.4) < 0.01
+          assert (folder / "annotated_footprints.jpg").stat().st_size > 0
+          PYTHON
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/ui-smoke.png"
           sips -g pixelWidth -g pixelHeight "$RUNNER_TEMP/ui-gallery-item.png"
       - name: Export UI test screenshots

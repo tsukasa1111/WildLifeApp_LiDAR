@@ -41,6 +41,7 @@ final class GalleryUITests: XCTestCase {
         card.tap()
         XCTAssertTrue(app.navigationBars["キャプチャ詳細"].waitForExistence(timeout: 5))
         attachScreen("detail")
+        verifyFootprintMarkup(in: app)
         app.buttons["編集"].tap()
         XCTAssertTrue(app.navigationBars["記録の編集"].waitForExistence(timeout: 5))
         let withoutTrack = app.buttons["足跡なし"]
@@ -71,6 +72,39 @@ final class GalleryUITests: XCTestCase {
         attachScreen("record-form")
         app.buttons["足跡あり"].tap()
         XCTAssertTrue(app.navigationBars["痕跡の記録"].exists)
+    }
+
+    private func verifyFootprintMarkup(in app: XCUIApplication) {
+        app.buttons["足跡画像を確認"].tap()
+        app.buttons["画像を選択"].tap()
+        app.buttons["写真 1"].tap()
+        app.buttons["足跡を編集"].tap()
+        let canvas = app.descendants(matching: .any)["annotation.canvas"].firstMatch
+        XCTAssertTrue(canvas.waitForExistence(timeout: 5))
+        app.buttons["大"].tap()
+        for x in [0.25, 0.75] {
+            canvas.coordinate(withNormalizedOffset: CGVector(dx: x, dy: 0.5)).tap()
+        }
+        XCTAssertTrue(app.staticTexts["2 / 10"].exists)
+        app.buttons["すべての印を消す"].tap()
+        app.alerts.buttons["キャンセル"].tap()
+        XCTAssertTrue(app.staticTexts["2 / 10"].exists)
+        attachScreen("markup")
+        app.buttons["保存"].tap()
+        app.alerts.buttons["OK"].tap()
+        XCTAssertTrue(app.staticTexts["マーキング済み"].waitForExistence(timeout: 5))
+        app.buttons["画像を選択"].tap()
+        app.buttons["写真 2"].tap()
+        XCTAssertTrue(app.staticTexts["元の写真"].waitForExistence(timeout: 5))
+        app.buttons["画像を選択"].tap()
+        app.buttons["写真 1"].tap()
+        XCTAssertTrue(app.staticTexts["マーキング済み"].waitForExistence(timeout: 5))
+        attachScreen("marked-photo")
+        app.buttons["足跡を編集"].tap()
+        XCTAssertTrue(app.staticTexts["2 / 10"].waitForExistence(timeout: 5))
+        app.buttons["キャンセル"].tap()
+        app.buttons["閉じる"].firstMatch.tap()
+        XCTAssertTrue(app.navigationBars["キャプチャ詳細"].waitForExistence(timeout: 5))
     }
 
     private func attachScreen(_ name: String) {

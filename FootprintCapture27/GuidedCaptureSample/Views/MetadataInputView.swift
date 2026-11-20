@@ -95,7 +95,8 @@ struct MetadataInputView: View {
                         captureImage: image,
                         captureFolderManager: captureFolderManager,
                         sourceImageName: viewModel.availableImages.indices.contains(viewModel.selectedImageIndex)
-                            ? viewModel.availableImages[viewModel.selectedImageIndex].lastPathComponent : nil
+                            ? viewModel.availableImages[viewModel.selectedImageIndex].lastPathComponent : nil,
+                        legacySourceImageName: viewModel.availableImages.prefix(3).last?.lastPathComponent
                     )
                     .onDisappear {
                         viewModel.checkAnnotationCompletion(appModel: appModel)

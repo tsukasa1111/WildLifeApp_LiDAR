@@ -23,10 +23,10 @@ struct AnnotationMarkersOverlay<G: Gesture>: View {
                 onDoubleTap: { onDoubleTap(annotation) },
                 onTap: { onTap(annotation) }
             )
+            .scaleEffect(scalingId == annotation.id ? currentScale : 1)
+            .simultaneousGesture(gestureFor(annotation))
             .position(positionFor(annotation))
             .offset(draggingId == annotation.id ? dragOffset : .zero)
-            .scaleEffect(scalingId == annotation.id ? currentScale * annotation.scaleMultiplier : annotation.scaleMultiplier)
-            .gesture(gestureFor(annotation))
         }
     }
 }

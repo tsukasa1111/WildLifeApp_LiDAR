@@ -39,60 +39,60 @@ struct LocalImageThumbnail: View {
     }
 }
 
-// MARK: - Image Selector View
-
 struct ImageSelectorView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var typeSize
     let availableImages: [URL]
     @Binding var selectedIndex: Int
-    let onSelectionChanged: (Int) -> Void
-    
+    var onSelectionChanged: ((Int) -> Void)? = nil
+
     var body: some View {
-        NavigationView {
-            List {
-                ForEach(Array(availableImages.enumerated()), id: \.offset) { index, imageURL in
-                    HStack {
-                        // サムネイル画像
-                        LocalImageThumbnail(url: imageURL, size: 60)
-                            .cornerRadius(8)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("画像 \(index + 1)")
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            
-                            Text(imageURL.lastPathComponent)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .lineLimit(1)
-                        }
-                        
-                        Spacer()
-                        
-                        if index == selectedIndex {
-                            Image(systemName: "checkmark.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.blue)
+        NavigationStack {
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: typeSize.isAccessibilitySize ? 160 : 96))], spacing: 16) {
+                        ForEach(Array(availableImages.enumerated()), id: \.element) { index, url in
+                            Button {
+                                selectedIndex = index
+                                onSelectionChanged?(index)
+                                dismiss()
+                            } label: {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    LocalImageThumbnail(url: url, size: 92)
+                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                        .overlay(alignment: .topTrailing) {
+                                            if index == selectedIndex {
+                                                Image(systemName: "checkmark.circle.fill")
+                                                    .symbolRenderingMode(.palette)
+                                                    .foregroundStyle(.white, .blue)
+                                                    .padding(4)
+                                            }
+                                        }
+                                    Text("写真 \(index + 1)").font(.subheadline)
+                                }
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel("写真 \(index + 1)")
+                            .accessibilityAddTraits(index == selectedIndex ? .isSelected : [])
+                            .id(url)
                         }
                     }
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        selectedIndex = index
-                        onSelectionChanged(index)
-                        dismiss()
+                    .padding()
+                }
+                .onAppear {
+                    if availableImages.indices.contains(selectedIndex) {
+                        proxy.scrollTo(availableImages[selectedIndex], anchor: .center)
                     }
                 }
             }
             .navigationTitle("画像を選択")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("キャンセル") {
-                        dismiss()
-                    }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("キャンセル") { dismiss() }
                 }
             }
         }
     }
 }
-
