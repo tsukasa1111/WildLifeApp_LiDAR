@@ -11,6 +11,7 @@ struct GC_FootprintConfirmationView: View {
     @State private var originalImage: UIImage?
     @State private var markedImage: UIImage?
     @State private var markedSourceName: String?
+    @State private var showOriginal = false
     @State private var showImageSelector = false
     @State private var showFootprintEditor = false
 
@@ -29,9 +30,11 @@ struct GC_FootprintConfirmationView: View {
         availableImages.indices.contains(selectedImageIndex) ? availableImages[selectedImageIndex] : nil
     }
 
-    private var showsMarkedImage: Bool {
+    private var hasMarkupForSelection: Bool {
         markedImage != nil && selectedURL?.lastPathComponent == markedSourceName
     }
+
+    private var showsMarkedImage: Bool { hasMarkupForSelection && !showOriginal }
 
     var body: some View {
         NavigationStack {
@@ -43,6 +46,7 @@ struct GC_FootprintConfirmationView: View {
                             .resizable()
                             .scaledToFit()
                             .accessibilityLabel(showsMarkedImage ? "印を保存した写真" : "撮影した写真")
+                            .accessibilityIdentifier(showsMarkedImage ? "photo.marked" : "photo.original")
                     } else if loadedURL != selectedURL {
                         ProgressView().tint(.white)
                     } else {
@@ -57,9 +61,18 @@ struct GC_FootprintConfirmationView: View {
                         Text("写真 \(availableImages.isEmpty ? 0 : selectedImageIndex + 1) / \(availableImages.count)")
                             .font(.headline.monospacedDigit())
                         Spacer()
-                        Text(showsMarkedImage ? "マーキング済み" : "元の写真")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                        if hasMarkupForSelection {
+                            Picker("写真の表示", selection: $showOriginal) {
+                                Text("印つき").tag(false)
+                                Text("元の写真").tag(true)
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(maxWidth: 180)
+                        } else {
+                            Text("元の写真")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     HStack {
                         Button("画像を選択") { showImageSelector = true }
@@ -94,6 +107,7 @@ struct GC_FootprintConfirmationView: View {
             }
         }
         .onAppear { reloadMarkup() }
+        .onChange(of: selectedURL) { _, _ in showOriginal = false }
         .task(id: selectedURL) {
             guard let url = selectedURL else { return }
             let image = await Self.readImage(url)
@@ -108,6 +122,7 @@ struct GC_FootprintConfirmationView: View {
     }
 
     private func reloadMarkup() {
+        showOriginal = false
         let url = captureFolderManager.captureFolder.appendingPathComponent(CaptureFolderManager.annotatedImageFileName)
         markedImage = UIImage(contentsOfFile: url.path)
         // Earlier recordings didn't store a source name. Keep their existing initial preview.
